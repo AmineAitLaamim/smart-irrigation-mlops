@@ -1,18 +1,51 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
-build/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+*.egg
 dist/
-wheels/
-*.egg-info
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
 
-# Virtual environments
-.venv
+# Node.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Docker
+.dockerignore
+
+# ML artifacts
+mlruns/
+*.pkl
+*.joblib
+*.json.bak
+models/*.json
+!models/.gitkeep
+
+# Environment
+.env
+*.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
 
 # Qwen Code
 .qwen/
-Qwen.md
+QWEN.md
 
 # PDFs
-*.pdf
 project_pdfs/
+*.pdf
