@@ -1,0 +1,185 @@
+
+# =============================================================================
+# Smart Irrigation System — User-Facing Services
+# Owner: DevOps (DO-01, DO-07, US-01 to US-04, WD-01 to WD-03)
+# Services: api-gateway, user-service, web-dashboard, notification-service
+# Requires base stack:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.app.yml up -d
+# Full system:
+#   make up
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # User Service — FastAPI JWT authentication
+  # Handles: register, login, token refresh, logout, user CRUD, zone ownership
+  # bcrypt password hashing (12 rounds)
+  # JWT access tokens (15m) + refresh tokens (7d) with Redis blacklist
+  # Port 5005 (internal only — all traffic routes through api-gateway)
+  # ---------------------------------------------------------------------------
+  user-service:
+    build:
+      context: ../services/user-service
+      dockerfile: Dockerfile
+    image: user-service:latest
+    container_name: user-service
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_TOKEN_BLACKLIST_URL: ${REDIS_TOKEN_BLACKLIST_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_EXPIRE_MIN: ${JWT_ACCESS_EXPIRE_MIN:-15}
+      JWT_REFRESH_EXPIRE_DAYS: ${JWT_REFRESH_EXPIRE_DAYS:-7}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      AUTH_MAX_ATTEMPTS: ${AUTH_MAX_ATTEMPTS:-5}
+      AUTH_LOCKOUT_MINUTES: ${AUTH_LOCKOUT_MINUTES:-15}
+      USER_SERVICE_PORT: ${USER_SERVICE_PORT:-5005}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-2}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+    ports:
+      - "${USER_SERVICE_PORT:-5005}:5005"
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # API Gateway — single external entry point (port 8080)
+  # JWT validation, rate limiting (100 req/min/IP), CORS, path-based routing:
+  #   /auth/* /users/*         → user-service
+  #   /v1/sensors/*            → timescaledb (direct query)
+  #   /v1/predictions/*        → model-server
+  #   /v1/zones/*              → timescaledb + ownership validation
+  #   /v1/drift/*              → drift-monitor
+  #   /v1/irrigation/*         → irrigation-controller
+  #   /dashboard/*             → web-dashboard (reverse proxy)
+  # Zone ownership enforced on PUT/DELETE /v1/zones/{zone_id}
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: ../services/api-gateway
+      dockerfile: Dockerfile
+    image: api-gateway:latest
+    container_name: api-gateway
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-100}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      API_GATEWAY_PORT: ${API_GATEWAY_PORT:-8080}
+      # Upstream service URLs (internal Docker DNS)
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      MODEL_SERVER_URL: ${MODEL_SERVER_REST_URL}
+      DRIFT_MONITOR_URL: ${DRIFT_MONITOR_URL}
+      IRRIGATION_CONTROLLER_URL: ${IRRIGATION_CONTROLLER_URL}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+      WEB_DASHBOARD_URL: http://web-dashboard:3000
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:8080"
+    networks:
+      - irrigation_net
+    depends_on:
+      user-service:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Web Dashboard — Next.js 15 React frontend
+  # TypeScript + Tailwind CSS 4 + shadcn/ui
+  # Communicates exclusively through api-gateway (no direct backend calls)
+  # JWT tokens stored in httpOnly cookies with automatic refresh
+  # REST polling every 10s for sensor readings and predictions (no WebSockets)
+  # Port 3000 internal — proxied through api-gateway at /dashboard/*
+  # ---------------------------------------------------------------------------
+  web-dashboard:
+    build:
+      context: ../services/web-dashboard
+      dockerfile: Dockerfile
+    image: web-dashboard:latest
+    container_name: web-dashboard
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      NEXT_PUBLIC_POLLING_INTERVAL_MS: ${NEXT_PUBLIC_POLLING_INTERVAL_MS:-10000}
+      NODE_ENV: ${ENV:-development}
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    networks:
+      - irrigation_net
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Notification Service — alert delivery via email + webhook
+  # Subscribes to Redis: alerts:anomaly, irrigation:triggered
+  # Delivers via SMTP and configurable HTTP webhook endpoints
+  # Alert routing rules defined in alertmanager.yml by severity level
+  # ---------------------------------------------------------------------------
+  notification-service:
+    build:
+      context: ../services/notification-service
+      dockerfile: Dockerfile
+    image: notification-service:latest
+    container_name: notification-service
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_ALERTS_ANOMALY: ${REDIS_CHANNEL_ALERTS_ANOMALY:-alerts:anomaly}
+      REDIS_CHANNEL_IRRIGATION_TRIGGERED: ${REDIS_CHANNEL_IRRIGATION_TRIGGERED:-irrigation:triggered}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      NOTIFICATION_WEBHOOK_URL: ${NOTIFICATION_WEBHOOK_URL:-}
+      ALERT_SEVERITY_THRESHOLD: ${ALERT_SEVERITY_THRESHOLD:-warning}
+    networks:
+      - irrigation_net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${NOTIFICATION_SERVICE_PORT:-8505}/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

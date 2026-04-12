@@ -1,0 +1,119 @@
+
+# =============================================================================
+# Smart Irrigation System — Data Pipeline
+# Owner: DataOps (DO-01 scaffold, DA tasks own service definitions)
+# Services: sensor-simulator, data-ingestion, feature-engineering
+# Requires base stack:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.data.yml up -d
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Sensor Simulator — simulated IoT soil moisture sensors
+  # Publishes JSON readings to Redis sensor:data channel every N seconds
+  # Respects per-zone plausibility bounds from zone_config.yaml
+  # Supports soil types: clay, loam, sandy
+  # ---------------------------------------------------------------------------
+  sensor-simulator:
+    build:
+      context: ../services/sensor-simulator
+      dockerfile: Dockerfile
+    image: sensor-simulator:latest
+    container_name: sensor-simulator
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_SENSOR_DATA: ${REDIS_CHANNEL_SENSOR_DATA:-sensor:data}
+      SENSOR_PUBLISH_INTERVAL: ${SENSOR_PUBLISH_INTERVAL:-30}
+      ZONE_CONFIG_PATH: /app/configs/zones/zone_config.yaml
+    volumes:
+      - ../configs/zones/zone_config.yaml:/app/configs/zones/zone_config.yaml:ro
+    networks:
+      - irrigation_net
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Data Ingestion — Redis consumer + TimescaleDB writer
+  # Subscribes to sensor:data, validates readings against plausibility bounds
+  # Valid readings → sensor_readings hypertable
+  # Anomalous readings → data_quality_events hypertable
+  # Health check endpoint: http://localhost:8001/health (reports ingestion stats)
+  # ---------------------------------------------------------------------------
+  data-ingestion:
+    build:
+      context: ../services/data-ingestion
+      dockerfile: Dockerfile
+    image: data-ingestion:latest
+    container_name: data-ingestion
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_SENSOR_DATA: ${REDIS_CHANNEL_SENSOR_DATA:-sensor:data}
+      REDIS_CHANNEL_INGESTION_PROCESSED: ${REDIS_CHANNEL_INGESTION_PROCESSED:-ingestion:processed}
+      REDIS_CHANNEL_ALERTS_ANOMALY: ${REDIS_CHANNEL_ALERTS_ANOMALY:-alerts:anomaly}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-2}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+    ports:
+      - "${DATA_INGESTION_PORT:-8001}:8001"
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Feature Engineering — computes ML features from raw sensor data
+  # Triggered by ingestion:processed Redis events
+  # Computes: rolling averages (30m, 1h, 3h, 24h), rate of change, variance
+  # Stores computed features in feature_references table
+  # Publishes to features:computed channel when done
+  # ---------------------------------------------------------------------------
+  feature-engineering:
+    build:
+      context: ../services/feature-engineering
+      dockerfile: Dockerfile
+    image: feature-engineering:latest
+    container_name: feature-engineering
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_INGESTION_PROCESSED: ${REDIS_CHANNEL_INGESTION_PROCESSED:-ingestion:processed}
+      REDIS_CHANNEL_FEATURES_COMPUTED: ${REDIS_CHANNEL_FEATURES_COMPUTED:-features:computed}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-2}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      data-ingestion:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
