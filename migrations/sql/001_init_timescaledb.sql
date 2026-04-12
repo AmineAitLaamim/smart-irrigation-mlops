@@ -11,17 +11,20 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- ── 1. Roles par service ──────────────────────────────────────
+-- ── 1. Roles per service (passwords via environment variables) ─
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ingestion_user') THEN
-        CREATE ROLE ingestion_user LOGIN PASSWORD 'ingestion_pass'; -- pragma: allowlist secret
+        EXECUTE format('CREATE ROLE ingestion_user LOGIN PASSWORD %L',
+                       current_setting('app.ingestion_password', true));
     END IF;
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'reader_user') THEN
-        CREATE ROLE reader_user LOGIN PASSWORD 'reader_pass'; -- pragma: allowlist secret
+        EXECUTE format('CREATE ROLE reader_user LOGIN PASSWORD %L',
+                       current_setting('app.reader_password', true));
     END IF;
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app_user') THEN
-        CREATE ROLE app_user LOGIN PASSWORD 'app_pass'; -- pragma: allowlist secret
+        EXECUTE format('CREATE ROLE app_user LOGIN PASSWORD %L',
+                       current_setting('app.app_password', true));
     END IF;
 END
 $$;
@@ -50,6 +53,20 @@ CREATE INDEX IF NOT EXISTS idx_zones_min_plausible
 CREATE INDEX IF NOT EXISTS idx_zones_max_plausible
     ON zones USING GIN (max_plausible);
 
+-- Auto-update updated_at on zone changes
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_zones_updated_at
+    BEFORE UPDATE ON zones
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- ── 3. Table sensor_metadata ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS sensor_metadata (
     sensor_id    VARCHAR(50) PRIMARY KEY,
@@ -63,7 +80,10 @@ CREATE TABLE IF NOT EXISTS sensor_metadata (
 CREATE INDEX IF NOT EXISTS idx_sensor_metadata_zone
     ON sensor_metadata (zone_id);
 
--- ── 4. Hypertable sensor_readings (chunk : 1 jour) ────────────
+CREATE INDEX IF NOT EXISTS idx_sensor_metadata_id_active
+    ON sensor_metadata (sensor_id, active);
+
+-- ── 4. Hypertable sensor_readings (chunk: 1 day) ──────────────
 CREATE TABLE IF NOT EXISTS sensor_readings (
     id          BIGSERIAL,
     timestamp   TIMESTAMPTZ NOT NULL,
@@ -87,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_sensor_readings_zone_time
 CREATE INDEX IF NOT EXISTS idx_sensor_readings_sensor_time
     ON sensor_readings (sensor_id, timestamp DESC);
 
--- ── 5. Hypertable irrigation_events (chunk : 1 semaine) ───────
+-- ── 5. Hypertable irrigation_events (chunk: 1 week) ───────────
 CREATE TABLE IF NOT EXISTS irrigation_events (
     id                 BIGSERIAL,
     triggered_at       TIMESTAMPTZ  NOT NULL,
@@ -115,7 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_irrigation_events_zone_time
 CREATE INDEX IF NOT EXISTS idx_irrigation_events_status
     ON irrigation_events (status) WHERE status = 'pending';
 
--- ── 6. Permissions par service ────────────────────────────────
+-- ── 6. Permissions per service ────────────────────────────────
 GRANT SELECT                   ON zones             TO ingestion_user;
 GRANT INSERT, SELECT           ON sensor_readings   TO ingestion_user;
 GRANT INSERT, SELECT           ON irrigation_events TO ingestion_user;
@@ -129,7 +149,7 @@ GRANT SELECT ON irrigation_events TO reader_user;
 GRANT SELECT, INSERT, UPDATE ON zones TO app_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
--- ── 7. Enregistrement de la migration ─────────────────────────
+-- ── 7. Record migration ───────────────────────────────────────
 INSERT INTO schema_migrations (version)
 VALUES ('001')
 ON CONFLICT DO NOTHING;

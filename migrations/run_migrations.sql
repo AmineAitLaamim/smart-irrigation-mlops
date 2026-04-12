@@ -1,8 +1,8 @@
 -- ================================================================
 -- run_migrations.sql
--- Exécuté au démarrage — applique les migrations dans l'ordre
--- RÈGLE : ne jamais modifier un fichier déjà appliqué
---         ajouter uniquement de nouvelles lignes \i en bas
+-- Executed at startup — applies migrations in order
+-- RULE: never modify an already-applied migration
+--       only add new \i lines at the bottom
 -- ================================================================
 
 \i /migrations/sql/001_init_timescaledb.sql
