@@ -58,7 +58,7 @@ services:
   # ---------------------------------------------------------------------------
   model-server:
     build:
-      context: ../model-server
+      context: ../services/model-server
       dockerfile: Dockerfile
     image: model-server:latest
     container_name: model-server
@@ -99,7 +99,7 @@ services:
   # ---------------------------------------------------------------------------
   drift-monitor:
     build:
-      context: ../drift-monitor
+      context: ../services/drift-monitor
       dockerfile: Dockerfile
     image: drift-monitor:latest
     container_name: drift-monitor
@@ -132,7 +132,7 @@ services:
   # ---------------------------------------------------------------------------
   irrigation-controller:
     build:
-      context: ../irrigation-controller
+      context: ../services/irrigation-controller
       dockerfile: Dockerfile
     image: irrigation-controller:latest
     container_name: irrigation-controller

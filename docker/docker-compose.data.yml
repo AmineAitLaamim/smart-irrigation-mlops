@@ -22,7 +22,7 @@ services:
   # ---------------------------------------------------------------------------
   sensor-simulator:
     build:
-      context: ../sensor-simulator
+      context: ../services/sensor-simulator
       dockerfile: Dockerfile
     image: sensor-simulator:latest
     container_name: sensor-simulator
@@ -50,7 +50,7 @@ services:
   # ---------------------------------------------------------------------------
   data-ingestion:
     build:
-      context: ../data-ingestion
+      context: ../services/data-ingestion
       dockerfile: Dockerfile
     image: data-ingestion:latest
     container_name: data-ingestion
@@ -89,7 +89,7 @@ services:
   # ---------------------------------------------------------------------------
   feature-engineering:
     build:
-      context: ../feature-engineering
+      context: ../services/feature-engineering
       dockerfile: Dockerfile
     image: feature-engineering:latest
     container_name: feature-engineering

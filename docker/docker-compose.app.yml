@@ -25,7 +25,7 @@ services:
   # ---------------------------------------------------------------------------
   user-service:
     build:
-      context: ../user-service
+      context: ../services/user-service
       dockerfile: Dockerfile
     image: user-service:latest
     container_name: user-service
@@ -75,7 +75,7 @@ services:
   # ---------------------------------------------------------------------------
   api-gateway:
     build:
-      context: ../api-gateway
+      context: ../services/api-gateway
       dockerfile: Dockerfile
     image: api-gateway:latest
     container_name: api-gateway
@@ -124,7 +124,7 @@ services:
   # ---------------------------------------------------------------------------
   web-dashboard:
     build:
-      context: ../web-dashboard
+      context: ../services/web-dashboard
       dockerfile: Dockerfile
     image: web-dashboard:latest
     container_name: web-dashboard
@@ -156,7 +156,7 @@ services:
   # ---------------------------------------------------------------------------
   notification-service:
     build:
-      context: ../notification-service
+      context: ../services/notification-service
       dockerfile: Dockerfile
     image: notification-service:latest
     container_name: notification-service
