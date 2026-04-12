@@ -2,7 +2,7 @@
 # Smart Irrigation System — Makefile
 # =============================================================================
 
-COMPOSE_BASE    := docker compose -f docker/docker-compose.yml
+COMPOSE_BASE    := docker compose --env-file .env -f docker/docker-compose.yml
 COMPOSE_MON     := $(COMPOSE_BASE) -f docker/docker-compose.monitoring.yml
 COMPOSE_ML      := $(COMPOSE_BASE) -f docker/docker-compose.ml.yml
 COMPOSE_DATA    := $(COMPOSE_BASE) -f docker/docker-compose.data.yml
@@ -146,12 +146,14 @@ endif
 # -----------------------------------------------------------------------------
 .PHONY: migrate
 migrate:
+	@export $$(grep -v '^\s*#' .env | grep -v '^\s*$$' | xargs); \
 	docker exec -i timescaledb psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} \
 		-f /docker-entrypoint-initdb.d/run_migrations.sql
 	@echo "Migrations applied."
 
 .PHONY: psql
 psql:
+	@export $$(grep -v '^\s*#' .env | grep -v '^\s*$$' | xargs); \
 	docker exec -it timescaledb psql -U $${POSTGRES_USER} -d $${POSTGRES_DB}
 
 # -----------------------------------------------------------------------------
@@ -159,9 +161,6 @@ psql:
 # -----------------------------------------------------------------------------
 .PHONY: test
 test:
-	docker compose -f docker/docker-compose.yml run --rm \
-		-v $(PWD)/tests:/tests \
-		timescaledb bash -c "echo 'Run pytest / vitest from your local env'"
 	@echo "Tip: run 'pytest tests/' locally with your virtualenv active."
 
 .PHONY: smoke
@@ -178,9 +177,9 @@ redis-cli:
 .PHONY: mlflow
 mlflow:
 	@echo "Opening MLflow at http://localhost:5000"
-	@open http://localhost:5000 2>/dev/null || xdg-open http://localhost:5000
+	@xdg-open http://localhost:5000 2>/dev/null || open http://localhost:5000 2>/dev/null || true
 
 .PHONY: grafana
 grafana:
 	@echo "Opening Grafana at http://localhost:3001"
-	@open http://localhost:3001 2>/dev/null || xdg-open http://localhost:3001
+	@xdg-open http://localhost:3001 2>/dev/null || open http://localhost:3001 2>/dev/null || true
