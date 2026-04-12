@@ -1,9 +1,18 @@
+# =============================================================================
+# Smart Irrigation System — .gitignore
+# =============================================================================
+
+# Environment — never commit real secrets
+.env
+
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.egg-info/
 .venv/
 venv/
+env/
 *.egg
 dist/
 build/
@@ -13,34 +22,48 @@ build/
 htmlcov/
 .coverage
 
-# Node.js
+# Node / Next.js
 node_modules/
 .next/
 out/
+*.tsbuildinfo
+.pnp
+.pnp.js
 npm-debug.log*
 
 # Docker
+.docker/
 .dockerignore
 
-# ML artifacts
-mlruns/
+# ML artifacts — tracked via MLflow, not git
 *.pkl
 *.joblib
+*.json.gz
 *.json.bak
-models/*.json
-!models/.gitkeep
+models/
+mlruns/
+artifacts/
 
-# Environment
-.env
-*.env.local
+# Airflow
+airflow/logs/
+airflow/plugins/
 
-# OS
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
-.idea/
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.dump
+*.sql.gz
 
 # Qwen Code
 .qwen/
