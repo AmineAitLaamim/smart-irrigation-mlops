@@ -1,0 +1,136 @@
+version: "3.9"
+
+# =============================================================================
+# Smart Irrigation System — Monitoring + CI/CD Stack
+# Owner: DevOps (DO-01, DO-02, DO-03)
+# Services: jenkins, prometheus, grafana, alertmanager
+# Requires base stack to be running first:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.monitoring.yml up -d
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+volumes:
+  jenkins_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Jenkins — CI/CD automation
+  # Runs lint, unit tests, Docker build, and integration smoke tests on every PR
+  # Jenkinsfile: jenkins/Jenkinsfile
+  # Shared library: jenkins/shared-lib/vars/smartIrrigation.groovy
+  # ---------------------------------------------------------------------------
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+    ports:
+      - "${JENKINS_PORT:-8081}:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — metrics collection
+  # Scrapes /metrics from every service every 15 seconds
+  # Config: configs/monitoring/prometheus.yml
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Grafana — visualization dashboards
+  # Pre-configured dashboards for system health and ML performance
+  # Dashboard JSON: configs/monitoring/grafana/
+  # UI available at http://localhost:3001
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../configs/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ../configs/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    networks:
+      - irrigation_net
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager — alert routing and notification management
+  # Routes Prometheus alerts to email/webhook based on severity
+  # Config: configs/monitoring/alertmanager.yml
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../configs/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

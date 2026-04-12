@@ -73,21 +73,32 @@ REQUIRED_VARS=(
 )
 
 MISSING=()
+CHANGEME=()
 
 for var in "${REQUIRED_VARS[@]}"; do
     val="${!var:-}"
     if [[ -z "$val" ]]; then
         MISSING+=("$var")
+    elif [[ "$val" == changeme* ]]; then
+        CHANGEME+=("$var")
     fi
 done
 
-if [[ ${#MISSING[@]} -gt 0 ]]; then
-    echo -e "${RED}Missing required environment variables:${NC}"
-    for var in "${MISSING[@]}"; do
-        echo -e "  - ${RED}$var${NC}"
-    done
+if [[ ${#MISSING[@]} -gt 0 || ${#CHANGEME[@]} -gt 0 ]]; then
+    if [[ ${#MISSING[@]} -gt 0 ]]; then
+        echo -e "${RED}Missing required environment variables:${NC}"
+        for var in "${MISSING[@]}"; do
+            echo -e "  - ${RED}$var${NC}"
+        done
+    fi
+    if [[ ${#CHANGEME[@]} -gt 0 ]]; then
+        echo -e "${YELLOW}Placeholder values still set:${NC}"
+        for var in "${CHANGEME[@]}"; do
+            echo -e "  - ${YELLOW}$var${NC}"
+        done
+    fi
     echo ""
-    echo "Fix: edit .env and set values for the variables above."
+    echo "Fix: edit .env and set real values for the variables above."
     exit 1
 fi
 

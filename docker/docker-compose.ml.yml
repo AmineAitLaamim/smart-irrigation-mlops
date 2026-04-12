@@ -1,0 +1,159 @@
+version: "3.9"
+
+# =============================================================================
+# Smart Irrigation System — ML Pipeline
+# Owner: MLOps (DO-01 scaffold, ML tasks own service definitions)
+# Services: airflow, model-server, drift-monitor, irrigation-controller
+# Requires base stack:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.ml.yml up -d
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Apache Airflow — ML pipeline orchestration
+  # Runs scheduled DAGs: model retraining, feature recomputation, data quality
+  # DAGs: airflow/dags/smart_irrigation_dags.py
+  # UI available at http://localhost:8082 (internal 8080 mapped to avoid clash)
+  # ---------------------------------------------------------------------------
+  airflow:
+    image: apache/airflow:2.8.0-python3.11
+    container_name: airflow
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR:-LocalExecutor}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+    ports:
+      - "8082:8080"
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags:ro
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Model Server — XGBoost prediction API
+  # gRPC port 5001: low-latency inter-service (irrigation-controller)
+  # REST port 8501: API gateway integration (/v1/predictions/*)
+  # Loads production model from MLflow registry at startup; supports hot-reload
+  # ---------------------------------------------------------------------------
+  model-server:
+    build:
+      context: ../model-server
+      dockerfile: Dockerfile
+    image: model-server:latest
+    container_name: model-server
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MLFLOW_PRODUCTION_STAGE: ${MLFLOW_PRODUCTION_STAGE:-Production}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MODEL_SERVER_GRPC_PORT: ${MODEL_SERVER_GRPC_PORT:-5001}
+      MODEL_SERVER_REST_PORT: ${MODEL_SERVER_REST_PORT:-8501}
+    ports:
+      - "${MODEL_SERVER_GRPC_PORT:-5001}:5001"
+      - "${MODEL_SERVER_REST_PORT:-8501}:8501"
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/v1/model/info"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Drift Monitor — concept drift + data quality detection
+  # Computes Page-Hinkley, KL divergence, prediction error distribution
+  # Publishes alerts to Redis alerts:anomaly channel
+  # REST: /v1/drift/status (routed through api-gateway)
+  # ---------------------------------------------------------------------------
+  drift-monitor:
+    build:
+      context: ../drift-monitor
+      dockerfile: Dockerfile
+    image: drift-monitor:latest
+    container_name: drift-monitor
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      model-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8502/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Irrigation Controller — automated irrigation decisions
+  # Subscribes to predictions:new Redis channel
+  # Triggers irrigation when predicted moisture < zone moisture_min
+  # Writes irrigation_events to TimescaleDB
+  # REST: /v1/irrigation/events (routed through api-gateway)
+  # ---------------------------------------------------------------------------
+  irrigation-controller:
+    build:
+      context: ../irrigation-controller
+      dockerfile: Dockerfile
+    image: irrigation-controller:latest
+    container_name: irrigation-controller
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_PREDICTIONS_NEW: ${REDIS_CHANNEL_PREDICTIONS_NEW:-predictions:new}
+      REDIS_CHANNEL_IRRIGATION_TRIGGERED: ${REDIS_CHANNEL_IRRIGATION_TRIGGERED:-irrigation:triggered}
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      model-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8503/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
