@@ -1,0 +1,133 @@
+# =============================================================================
+# Smart Irrigation — Jenkins Configuration as Code (JCasC)
+# =============================================================================
+# This file fully configures Jenkins on startup. No manual setup required.
+# All secrets are injected via environment variables — never hardcoded.
+#
+# Env vars consumed (from .env):
+#   JENKINS_ADMIN_USER, JENKINS_ADMIN_PASSWORD   → admin account
+#   GITHUB_USER, GITHUB_TOKEN                    → Git checkout + GHCR push
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Core Jenkins Settings
+# ─────────────────────────────────────────────────────────────────────────────
+jenkins:
+  systemMessage: >-
+    Smart Irrigation CI/CD — fully configured via Configuration as Code.
+    Do not modify settings through the UI; edit jenkins/casc.yaml instead.
+
+  # Controller runs zero executors — all work delegated to Docker agents
+  numExecutors: 0
+  mode: EXCLUSIVE
+  quietPeriod: 0
+
+  # ── Security Realm ────────────────────────────────────────────────────────
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+
+  # ── Authorization ────────────────────────────────────────────────────────
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:${JENKINS_ADMIN_USER}"
+        - "Overall/Read:anonymous"
+
+  # ── Docker Cloud — dynamic agent provisioning ────────────────────────────
+  clouds:
+    - docker:
+        name: "docker-local"
+        dockerApi:
+          dockerHost:
+            uri: "unix:///var/run/docker.sock"
+        templates:
+          # ── Python Agent ─────────────────────────────────────────────────
+          # Used for: Checkout, Lint (Ruff + mypy), Unit Tests,
+          #           Integration Tests, Security Scan (OWASP)
+          - name: "python-agent"
+            labelString: "python"
+            dockerTemplateBase:
+              image: "smart-irrigation-python-agent:latest"
+            remoteFs: "/home/jenkins/agent"
+            connector:
+              attach:
+                user: "jenkins"
+            instanceCapStr: "4"
+            removeVolumes: true
+
+          # ── Docker Agent ─────────────────────────────────────────────────
+          # Used for: Docker Build & Verify, Publish, Deploy
+          - name: "docker-agent"
+            labelString: "docker"
+            dockerTemplateBase:
+              image: "smart-irrigation-docker-agent:latest"
+              volumesString: "/var/run/docker.sock:/var/run/docker.sock"
+            remoteFs: "/home/jenkins/agent"
+            connector:
+              attach:
+                user: "jenkins"
+            instanceCapStr: "2"
+            removeVolumes: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Credentials
+# ─────────────────────────────────────────────────────────────────────────────
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # GitHub PAT — used for private repo checkout AND ghcr.io push
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-creds"
+              username: "${GITHUB_USER}"
+              password: "${GITHUB_TOKEN}"
+              description: "GitHub PAT (repo checkout + GHCR registry)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global Settings
+# ─────────────────────────────────────────────────────────────────────────────
+unclassified:
+  location:
+    url: "http://localhost:${JENKINS_PORT:-8081}/"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Seed Job — auto-creates the pipeline job on first boot
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+  - script: |
+      pipelineJob('smart-irrigation-pipeline') {
+        description('CI/CD pipeline for Smart Irrigation MLOps microservices')
+
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url("https://github.com/${GITHUB_USER}/smart-irrigation.git")
+                  credentials('github-creds')
+                }
+                branches('*/main', '*/develop', '**')
+              }
+            }
+            scriptPath('Jenkinsfile')
+            lightweight(true)
+          }
+        }
+
+        triggers {
+          githubPush()
+        }
+
+        properties {
+          pipelineTriggers {
+            triggers {
+              githubPush()
+            }
+          }
+        }
+      }

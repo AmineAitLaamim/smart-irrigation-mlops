@@ -1,0 +1,42 @@
+# =============================================================================
+# Smart Irrigation — Custom Jenkins Controller
+# Extends jenkins/jenkins:lts with:
+#   - Setup wizard disabled (JCasC handles everything)
+#   - All plugins pre-installed from plugins.txt
+#   - Configuration as Code YAML bundled in
+#   - Docker CLI for communicating with Docker daemon
+# =============================================================================
+
+FROM jenkins/jenkins:lts
+
+# ── Skip the interactive setup wizard ──────────────────────────────────────
+ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
+ENV CASC_JENKINS_CONFIG="/var/jenkins_home/casc.yaml"
+
+# ── Install plugins ───────────────────────────────────────────────────────
+COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+
+# ── Install Docker CLI (controller needs it for Docker Cloud) ──────────────
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) \
+        signed-by=/etc/apt/keyrings/docker.gpg] \
+        https://download.docker.com/linux/debian \
+        $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -f docker && usermod -aG docker jenkins
+USER jenkins
+
+# ── Bundle the JCasC configuration ─────────────────────────────────────────
+COPY casc.yaml /var/jenkins_home/casc.yaml
