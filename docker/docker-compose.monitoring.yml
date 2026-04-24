@@ -30,6 +30,8 @@ services:
     build:
       context: ../jenkins
       dockerfile: Dockerfile.jenkins
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
     image: smart-irrigation-jenkins:latest
     container_name: jenkins
     restart: unless-stopped
@@ -76,6 +78,8 @@ services:
     build:
       context: ../jenkins
       dockerfile: Dockerfile.docker-agent
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
     image: smart-irrigation-docker-agent:latest
     profiles:
       - build-agents

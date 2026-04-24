@@ -19,13 +19,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Python CI toolchain ────────────────────────────────────────────────────
-RUN pip install --no-cache-dir --break-system-packages \
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir \
         ruff \
         mypy \
         pytest \
         pytest-cov \
         pytest-asyncio \
         types-requests
+
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # ── OWASP Dependency-Check CLI ─────────────────────────────────────────────
 ARG DC_VERSION=10.0.4

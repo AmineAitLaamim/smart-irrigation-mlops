@@ -2,6 +2,7 @@ configuration-as-code
 docker-plugin
 docker-workflow
 workflow-aggregator
+workflow-cps-global-lib
 pipeline-stage-view
 pipeline-utility-steps
 git

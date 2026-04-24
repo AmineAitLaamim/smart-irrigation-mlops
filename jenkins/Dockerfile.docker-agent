@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Allow jenkins user to talk to Docker socket ────────────────────────────
-RUN groupadd -f docker && usermod -aG docker jenkins
+ARG DOCKER_GID=999
+RUN groupadd -f -g ${DOCKER_GID} docker 2>/dev/null || groupadd -f docker
+RUN usermod -aG docker jenkins
 
 USER jenkins

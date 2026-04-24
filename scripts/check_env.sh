@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
 
 # =============================================================================
 # Smart Irrigation System — Environment Validator
@@ -22,9 +22,9 @@ if [[ ! -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
-# Source .env
+# Source .env (strip \r for Windows CRLF compatibility)
 set -a
-source "$ENV_FILE"
+source <(sed 's/\r$//' "$ENV_FILE")
 set +a
 
 REQUIRED_VARS=(

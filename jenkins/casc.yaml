@@ -95,6 +95,17 @@ unclassified:
   location:
     url: "http://localhost:${JENKINS_PORT:-8081}/"
 
+  globalLibraries:
+    libraries:
+      - name: "smartIrrigation"
+        defaultVersion: "main"
+        retriever:
+          legacySCM:
+            scm:
+              git:
+                remote: "https://github.com/${GITHUB_USER}/smart-irrigation.git"
+                credentialsId: "github-creds"
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed Job — auto-creates the pipeline job on first boot
 # ─────────────────────────────────────────────────────────────────────────────
