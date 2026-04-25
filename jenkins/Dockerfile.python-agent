@@ -26,7 +26,8 @@ RUN python3 -m venv /opt/venv && \
         pytest \
         pytest-cov \
         pytest-asyncio \
-        types-requests
+        types-requests \
+    && chown -R jenkins:jenkins /opt/venv
 
 ENV PATH="/opt/venv/bin:${PATH}"
 

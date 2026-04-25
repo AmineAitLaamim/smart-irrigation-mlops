@@ -70,10 +70,23 @@ pipeline {
                     agent { label 'python' }
                     steps {
                         unstash 'source'
-                        sh 'echo "── mypy: type-checking all services ──" && mypy services/ --ignore-missing-imports --no-error-summary --junit-xml mypy-report.xml --explicit-package-bases || true'
+                        sh '''
+                            echo "── mypy: type-checking all services ──"
+                            EXIT_CODE=0
+                            for svc in $(echo $SERVICES | tr ',' ' '); do
+                                if [ -d "services/${svc}/src" ]; then
+                                    echo "▶ Type checking ${svc}..."
+                                    python3 -m mypy "services/${svc}/src" \
+                                        --ignore-missing-imports \
+                                        --no-error-summary \
+                                        --junit-xml "mypy-${svc}.xml" || EXIT_CODE=1
+                                fi
+                            done
+                            exit $EXIT_CODE
+                        '''
                     }
                     post {
-                        always { junit allowEmptyResults: true, testResults: 'mypy-report.xml' }
+                        always { junit allowEmptyResults: true, testResults: 'mypy-*.xml' }
                     }
                 }
                 stage('Unit Tests') {
@@ -327,7 +340,9 @@ pipeline {
     // =========================================================================
     post {
         always {
-            cleanWs()
+            node('python') {
+                cleanWs(deleteDirs: true, disableDeferredWipeout: true)
+            }
         }
         failure {
             echo "❌ Pipeline FAILED on branch ${env.BRANCH_NAME} — build #${env.BUILD_NUMBER}"
@@ -336,4 +351,5 @@ pipeline {
             echo "✅ Pipeline PASSED on branch ${env.BRANCH_NAME} — build #${env.BUILD_NUMBER}"
         }
     }
-}
+    }
+

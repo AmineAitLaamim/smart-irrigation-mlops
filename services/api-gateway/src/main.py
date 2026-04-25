@@ -1,11 +1,10 @@
 import os
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
-from auth import get_current_user, optional_auth, CurrentUser, refresh_access_token
+from auth import get_current_user, CurrentUser, refresh_access_token
 from rate_limiter import rate_limit_middleware
 
 
@@ -18,7 +17,6 @@ DRIFT_MONITOR_URL = os.getenv("DRIFT_MONITOR_URL", "http://drift-monitor:8502")
 IRRIGATION_CONTROLLER_URL = os.getenv("IRRIGATION_CONTROLLER_URL", "http://irrigation-controller:8503")
 NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8505")
 WEB_DASHBOARD_URL = os.getenv("WEB_DASHBOARD_URL", "http://web-dashboard:3000")
-DATA_INGESTION_URL = os.getenv("DATA_INGESTION_HEALTH_URL", "http://data-ingestion:8001").replace("/health", "")
 
 
 app = FastAPI(title="API Gateway", version="1.0.0")
