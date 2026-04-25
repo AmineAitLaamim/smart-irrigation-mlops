@@ -73,4 +73,6 @@ TASKS_DEVOPS.md
 # PDFs
 project_pdfs/
 *.pdf
+
+.gemini/
 docs/PDF_SPECIFICATIONS.txt

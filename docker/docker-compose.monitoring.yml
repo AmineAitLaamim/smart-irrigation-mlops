@@ -20,25 +20,35 @@ volumes:
 services:
 
   # ---------------------------------------------------------------------------
-  # Jenkins — CI/CD automation
-  # Runs lint, unit tests, Docker build, and integration smoke tests on every PR
-  # Jenkinsfile: jenkins/Jenkinsfile
+  # Jenkins — CI/CD automation (Configuration as Code)
+  # Custom image: jenkins/Dockerfile.jenkins (plugins + JCasC pre-baked)
+  # Docker Cloud agents: python-agent (lint, test, scan), docker-agent (build, push)
+  # Jenkinsfile: Jenkinsfile (repo root)
   # Shared library: jenkins/shared-lib/vars/smartIrrigation.groovy
   # ---------------------------------------------------------------------------
   jenkins:
-    image: jenkins/jenkins:lts
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.jenkins
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
+    image: smart-irrigation-jenkins:latest
     container_name: jenkins
     restart: unless-stopped
     env_file: ../.env
     environment:
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
       JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+      GITHUB_USER: ${GITHUB_USER}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
     ports:
       - "${JENKINS_PORT:-8081}:8080"
       - "50000:50000"
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - ../jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
     networks:
       - irrigation_net
     healthcheck:
@@ -46,7 +56,35 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Jenkins Python Agent — built once, used by Docker Cloud on demand
+  # Contains: Python 3.11, ruff, mypy, pytest, OWASP Dependency-Check
+  # ---------------------------------------------------------------------------
+  jenkins-python-agent:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.python-agent
+    image: smart-irrigation-python-agent:latest
+    profiles:
+      - build-agents
+    entrypoint: ["echo", "Agent image built successfully"]
+
+  # ---------------------------------------------------------------------------
+  # Jenkins Docker Agent — built once, used by Docker Cloud on demand
+  # Contains: Docker CLI, Docker Compose plugin
+  # ---------------------------------------------------------------------------
+  jenkins-docker-agent:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.docker-agent
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
+    image: smart-irrigation-docker-agent:latest
+    profiles:
+      - build-agents
+    entrypoint: ["echo", "Agent image built successfully"]
 
   # ---------------------------------------------------------------------------
   # Prometheus — metrics collection

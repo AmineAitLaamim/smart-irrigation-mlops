@@ -1,0 +1,45 @@
+# =============================================================================
+# Smart Irrigation — Python CI Agent
+# Used by Jenkins Docker Cloud for: lint, test, security scan stages
+# Base: jenkins/inbound-agent (provides Java + Jenkins remoting)
+# =============================================================================
+
+FROM jenkins/inbound-agent:latest
+
+USER root
+
+# ── Python 3.11 + system deps ──────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        git \
+        curl \
+        unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Python CI toolchain ────────────────────────────────────────────────────
+RUN python3 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --no-cache-dir \
+        ruff \
+        mypy \
+        pytest \
+        pytest-cov \
+        pytest-asyncio \
+        types-requests \
+    && chown -R jenkins:jenkins /opt/venv
+
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# ── OWASP Dependency-Check CLI ─────────────────────────────────────────────
+ARG DC_VERSION=10.0.4
+RUN curl -fsSL \
+        "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip" \
+        -o /tmp/dc.zip \
+    && unzip -q /tmp/dc.zip -d /opt/ \
+    && rm /tmp/dc.zip \
+    && chmod +x /opt/dependency-check/bin/dependency-check.sh
+
+ENV PATH="/opt/dependency-check/bin:${PATH}"
+
+USER jenkins

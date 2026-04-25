@@ -7,9 +7,11 @@ COMPOSE_MON     := $(COMPOSE_BASE) -f docker/docker-compose.monitoring.yml
 COMPOSE_ML      := $(COMPOSE_BASE) -f docker/docker-compose.ml.yml
 COMPOSE_DATA    := $(COMPOSE_BASE) -f docker/docker-compose.data.yml
 COMPOSE_APP     := $(COMPOSE_BASE) -f docker/docker-compose.app.yml
-COMPOSE_ALL     := $(COMPOSE_MON) -f docker/docker-compose.ml.yml \
+COMPOSE_ALL     := $(COMPOSE_BASE) \
+                   -f docker/docker-compose.app.yml \
                    -f docker/docker-compose.data.yml \
-                   -f docker/docker-compose.app.yml
+                   -f docker/docker-compose.ml.yml \
+                   -f docker/docker-compose.monitoring.yml
 
 .DEFAULT_GOAL := help
 
@@ -32,6 +34,8 @@ help:
 	@echo "    make up-ml          Start base + ML pipeline"
 	@echo "    make up-app         Start base + user-facing services"
 	@echo "    make up-monitoring  Start base + monitoring + CI/CD"
+	@echo "    make jenkins        Start Jenkins service only"
+	@echo "    make build-jenkins-agents Build custom Jenkins controller and agent images"
 	@echo ""
 	@echo "  Teardown"
 	@echo "    make down           Stop all containers (keep volumes)"
@@ -41,6 +45,7 @@ help:
 	@echo "    make ps             Show running containers and health status"
 	@echo "    make logs           Tail logs from all containers"
 	@echo "    make logs s=NAME    Tail logs from a specific service (e.g. make logs s=api-gateway)"
+	@echo "    make logs-jenkins   Tail logs from the Jenkins container"
 	@echo "    make build          Build all custom service images"
 	@echo "    make build s=NAME   Build a specific service image"
 	@echo "    make restart s=NAME Restart a specific service"
@@ -51,12 +56,14 @@ help:
 	@echo ""
 	@echo "  Testing"
 	@echo "    make test           Run unit + integration tests"
+	@echo "    make test-all       Run all unit tests across services using uv"
 	@echo "    make smoke          Run end-to-end smoke test"
 	@echo ""
 	@echo "  Utilities"
 	@echo "    make redis-cli      Open redis-cli shell"
 	@echo "    make mlflow         Open MLflow UI in browser"
 	@echo "    make grafana        Open Grafana UI in browser"
+	@echo "    make tunnel         Expose Jenkins via ngrok"
 	@echo ""
 
 # -----------------------------------------------------------------------------
@@ -99,6 +106,22 @@ up-app: check-env
 up-monitoring: check-env
 	$(COMPOSE_MON) up -d
 
+.PHONY: jenkins
+jenkins: check-env
+	$(COMPOSE_MON) up -d jenkins
+
+.PHONY: build-jenkins-agents
+build-jenkins-agents: check-env
+	docker build -t jenkins-controller:latest -f jenkins/Dockerfile.jenkins jenkins/
+	docker build -t smart-irrigation-python-agent:latest -f jenkins/Dockerfile.python-agent jenkins/
+	docker build -t smart-irrigation-docker-agent:latest -f jenkins/Dockerfile.docker-agent jenkins/
+
+.PHONY: rebuild-jenkins
+rebuild-jenkins: check-env
+	@docker network inspect irrigation_net >/dev/null 2>&1 || (echo "Creating irrigation_net..." && docker network create irrigation_net)
+	$(COMPOSE_MON) build --no-cache jenkins jenkins-python-agent jenkins-docker-agent
+	$(COMPOSE_MON) up -d --force-recreate jenkins
+
 # -----------------------------------------------------------------------------
 # Teardown
 # -----------------------------------------------------------------------------
@@ -125,6 +148,10 @@ ifdef s
 else
 	$(COMPOSE_ALL) logs -f
 endif
+
+.PHONY: logs-jenkins
+logs-jenkins:
+	docker logs -f jenkins
 
 .PHONY: build
 build:
@@ -163,6 +190,22 @@ psql:
 test:
 	@echo "Tip: run 'pytest tests/' locally with your virtualenv active."
 
+.PHONY: test-all
+test-all:
+	@echo "Running all unit and integration tests using uv..."
+	@for service in api-gateway data-ingestion drift-monitor feature-engineering irrigation-controller model-server notification-service sensor-simulator user-service; do \
+		if find services/$$service/tests -name "test_*.py" | grep -q .; then \
+			echo "----------------------------------------------------------------------"; \
+			echo "Testing $$service..."; \
+			echo "----------------------------------------------------------------------"; \
+			PYTHONPATH=services/$$service:services/$$service/src ENV=testing uv run \
+				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with "pydantic[email]" \
+				pytest services/$$service/tests/ || exit 1; \
+		else \
+			echo "No tests found for $$service, skipping."; \
+		fi; \
+	done
+
 .PHONY: smoke
 smoke:
 	@bash scripts/smoke_test.sh
@@ -183,3 +226,8 @@ mlflow:
 grafana:
 	@echo "Opening Grafana at http://localhost:3001"
 	@xdg-open http://localhost:3001 2>/dev/null || open http://localhost:3001 2>/dev/null || true
+
+.PHONY: tunnel
+tunnel:
+	@echo "Starting ngrok for Jenkins on port $(or $(JENKINS_PORT),8081)..."
+	ngrok http $(or $(JENKINS_PORT),8081)
