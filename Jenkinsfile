@@ -55,33 +55,40 @@ pipeline {
         // 2. CI CHECKS — Parallel Lint, Unit Tests, and Security Scan
         // =====================================================================
         stage('CI Checks') {
+            agent { label 'python' }
             parallel {
                 stage('Ruff') {
-                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh 'echo "── Ruff: linting all services ──" && ruff check services/ --output-format=junit > ruff-report.xml || true'
                     }
                 }
                 stage('mypy') {
-                    agent { label 'python' }
                     steps {
                         unstash 'source'
-                        sh 'echo "── mypy: type-checking all services ──" && mypy services/ --ignore-missing-imports --no-error-summary --junit-xml mypy-report.xml || true'
+                        sh 'echo "── mypy: type-checking all services ──" && mypy services/ --ignore-missing-imports --no-error-summary --junit-xml mypy-report.xml --explicit-package-bases || true'
                     }
                 }
                 stage('Unit Tests') {
-                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh '''
+                            echo "── Preparing Python environment ──"
+                            python3 -m pip install --quiet --upgrade pip
+
                             echo "── Running unit tests across all services ──"
                             EXIT_CODE=0
                             for svc in $(echo $SERVICES | tr ',' ' '); do
                                 if [ -d "services/${svc}/tests/unit" ]; then
                                     echo "▶ Testing ${svc}..."
-                                    pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
-                                    python3 -m pytest "services/${svc}/tests/unit/" --junitxml="unit-${svc}.xml" --tb=short -q || EXIT_CODE=1
+                                    python3 -m pip install --quiet -r "services/${svc}/requirements.txt" || {
+                                        echo "⚠️ Failed to install dependencies for ${svc}"
+                                        EXIT_CODE=1
+                                        continue
+                                    }
+                                    python3 -m pytest "services/${svc}/tests/unit/" \
+                                        --junitxml="${WORKSPACE}/unit-${svc}.xml" \
+                                        --tb=short -q || EXIT_CODE=1
                                 fi
                             done
                             exit $EXIT_CODE
@@ -89,7 +96,6 @@ pipeline {
                     }
                 }
                 stage('Security Scan') {
-                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh '''
