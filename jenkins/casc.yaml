@@ -18,7 +18,7 @@ jenkins:
     Do not modify settings through the UI; edit jenkins/casc.yaml instead.
 
   # Controller runs zero executors — all work delegated to Docker agents
-  numExecutors: 1
+  numExecutors: 0
   mode: EXCLUSIVE
   quietPeriod: 0
 
@@ -113,7 +113,6 @@ unclassified:
                     credentialsId: "github-creds"
                 branches:
                   - name: "**"
-            libraryPath: "jenkins/shared-lib"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed Job — auto-creates the pipeline job on first boot
@@ -128,7 +127,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url("https://github.com/${System.getenv('GITHUB_USER')}/smart-irrigation.git")
+                  url("https://github.com/${GITHUB_USER}/smart-irrigation.git")
                   credentials('github-creds')
                 }
                 branches('*/main', '*/develop', '**')

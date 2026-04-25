@@ -1,8 +1,11 @@
 // =============================================================================
 // Smart Irrigation — Shared Pipeline Library
 // =============================================================================
-// Loaded automatically via Jenkinsfile: library identifier: 'smartIrrigation'
+// Loaded automatically via Jenkinsfile: @Library('smartIrrigation') _
 // Provides reusable helpers for the CI/CD pipeline.
+//
+// Location: vars/smartIrrigation.groovy (repo root)
+// Jenkins requires the vars/ directory to be at the root of the library repo.
 // =============================================================================
 
 /**
@@ -77,4 +80,3 @@ def isIntegrationBranch() {
     }
     return false
 }
-

@@ -206,5 +206,5 @@ grafana:
 
 .PHONY: tunnel
 tunnel:
-	@echo "Starting ngrok for Jenkins on port ${JENKINS_PORT:-8081}..."
-	ngrok http ${JENKINS_PORT:-8081}
+	@echo "Starting ngrok for Jenkins on port $(or $(JENKINS_PORT),8081)..."
+	ngrok http $(or $(JENKINS_PORT),8081)
