@@ -20,7 +20,6 @@ from auth import (
     refresh_access_token,
     get_current_user,
     optional_auth,
-    TokenPayload,
     CurrentUser,
     JWT_SECRET_KEY,
     JWT_ALGORITHM,
@@ -70,7 +69,6 @@ def test_create_access_token_expires_in_15_minutes():
     before = int(time.time())
     token = create_access_token("u1")
     payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-    after = int(time.time())
 
     # exp should be roughly iat + 900 seconds (15 min)
     assert 895 <= payload["exp"] - before <= 905
@@ -217,15 +215,7 @@ async def test_refresh_access_token_rejects_garbage():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TokenPayload model
+# TokenPayload logic (implicit via auth functions)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_token_payload_defaults():
-    payload = TokenPayload(sub="user-1", exp=9999999999)
-    assert payload.type == "access"
-    assert payload.iat is None
-
-
-def test_token_payload_custom_type():
-    payload = TokenPayload(sub="user-1", exp=9999999999, type="refresh")
-    assert payload.type == "refresh"
+# No longer testing TokenPayload model directly as it was removed in favor of dict.get()

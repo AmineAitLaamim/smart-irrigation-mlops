@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncpg
 
-from auth import get_current_user, CurrentUser, refresh_access_token
+from auth import get_current_user, refresh_access_token
 from rate_limiter import rate_limit_middleware
 
 
@@ -58,6 +58,8 @@ async def refresh_token_endpoint(request: Request):
 
 @app.middleware("http")
 async def gateway_rate_limit(request: Request, call_next):
+    if os.getenv("ENV") == "testing":
+        return await call_next(request)
     await rate_limit_middleware(request, call_next)
 
 

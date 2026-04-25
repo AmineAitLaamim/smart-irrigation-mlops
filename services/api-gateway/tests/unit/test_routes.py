@@ -10,10 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 # Patch redis before importing main (avoids connection on import)
 from unittest.mock import MagicMock, patch
-import pytest
 
 with patch("redis.from_url", return_value=MagicMock()):
-    from main import get_upstream_url, app, ROUTES
+    from main import get_upstream_url, ROUTES
 
 
 # ─────────────────────────────────────────────────────────────────────────────

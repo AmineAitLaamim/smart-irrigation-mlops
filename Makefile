@@ -56,6 +56,7 @@ help:
 	@echo ""
 	@echo "  Testing"
 	@echo "    make test           Run unit + integration tests"
+	@echo "    make test-all       Run all unit tests across services using uv"
 	@echo "    make smoke          Run end-to-end smoke test"
 	@echo ""
 	@echo "  Utilities"
@@ -188,6 +189,20 @@ psql:
 .PHONY: test
 test:
 	@echo "Tip: run 'pytest tests/' locally with your virtualenv active."
+
+.PHONY: test-all
+test-all:
+	@echo "Running all unit and integration tests using uv..."
+	@for service in api-gateway data-ingestion drift-monitor feature-engineering irrigation-controller model-server notification-service sensor-simulator user-service; do \
+		if find services/$$service/tests -name "test_*.py" | grep -q .; then \
+			echo "----------------------------------------------------------------------"; \
+			echo "Testing $$service..."; \
+			echo "----------------------------------------------------------------------"; \
+			PYTHONPATH=services/$$service/src ENV=testing uv run --with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with redis --with asyncpg pytest services/$$service/tests/ || exit 1; \
+		else \
+			echo "No tests found for $$service, skipping."; \
+		fi; \
+	done
 
 .PHONY: smoke
 smoke:

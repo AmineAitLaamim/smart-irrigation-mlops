@@ -1,7 +1,6 @@
 import os
 from typing import Optional
 from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
@@ -9,13 +8,6 @@ from pydantic import BaseModel
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev_jwt_secret_key_not_for_production")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-
-
-class TokenPayload(BaseModel):
-    sub: str
-    exp: int
-    iat: Optional[int] = None
-    type: Optional[str] = "access"
 
 
 class CurrentUser(BaseModel):
@@ -49,7 +41,6 @@ async def get_current_user(request: Request) -> CurrentUser:
 
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        token_data = TokenPayload(**payload)
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,14 +48,14 @@ async def get_current_user(request: Request) -> CurrentUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    if token_data.type != "access":
+    if payload.get("type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return CurrentUser(user_id=token_data.sub, email=token_data.sub)
+    return CurrentUser(user_id=payload.get("sub"), email=payload.get("sub"))
 
 
 async def optional_auth(request: Request) -> Optional[CurrentUser]:
@@ -99,20 +90,19 @@ def create_refresh_token(user_id: str) -> str:
 async def refresh_access_token(refresh_token: str) -> tuple[str, str]:
     try:
         payload = jwt.decode(refresh_token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        token_data = TokenPayload(**payload)
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
 
-    if token_data.type != "refresh":
+    if payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type for refresh",
         )
 
     # Rotation: Issue a new access token AND a new refresh token
-    new_access = create_access_token(token_data.sub)
-    new_refresh = create_refresh_token(token_data.sub)
+    new_access = create_access_token(payload.get("sub"))
+    new_refresh = create_refresh_token(payload.get("sub"))
     return new_access, new_refresh

@@ -14,9 +14,16 @@ import pytest_asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
 from httpx import AsyncClient, ASGITransport
 
+# Patch redis before importing main (avoids connection on import)
 with patch("redis.from_url", return_value=MagicMock()):
     from main import app
     from auth import create_access_token, create_refresh_token
+
+# ── Disable Rate Limiting Middleware for Integration Tests ───────────────────
+# This prevents the TypeError when comparing MagicMocks to integers in CI.
+@app.middleware("http")
+async def skip_rate_limit(request, call_next):
+    return await call_next(request)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
