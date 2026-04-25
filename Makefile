@@ -35,6 +35,7 @@ help:
 	@echo "    make up-app         Start base + user-facing services"
 	@echo "    make up-monitoring  Start base + monitoring + CI/CD"
 	@echo "    make jenkins        Start Jenkins service only"
+	@echo "    make build-jenkins-agents Build custom Jenkins controller and agent images"
 	@echo ""
 	@echo "  Teardown"
 	@echo "    make down           Stop all containers (keep volumes)"
@@ -106,8 +107,13 @@ up-monitoring: check-env
 
 .PHONY: jenkins
 jenkins: check-env
-	@docker network inspect irrigation_net >/dev/null 2>&1 || (echo "Creating irrigation_net..." && docker network create irrigation_net)
 	$(COMPOSE_MON) up -d jenkins
+
+.PHONY: build-jenkins-agents
+build-jenkins-agents: check-env
+	docker build -t jenkins-controller:latest -f jenkins/Dockerfile.jenkins jenkins/
+	docker build -t smart-irrigation-python-agent:latest -f jenkins/Dockerfile.python-agent jenkins/
+	docker build -t smart-irrigation-docker-agent:latest -f jenkins/Dockerfile.docker-agent jenkins/
 
 .PHONY: rebuild-jenkins
 rebuild-jenkins: check-env

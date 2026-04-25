@@ -52,75 +52,67 @@ pipeline {
         }
 
         // =====================================================================
-        // 2. LINT — Ruff + mypy in parallel
-        // Runs on: ALL branches
+        // 2. CI CHECKS — Parallel Lint, Unit Tests, and Security Scan
         // =====================================================================
-        stage('Lint') {
-            agent { label 'python' }
-            steps {
-                unstash 'source'
-                parallel(
-                    'Ruff': {
+        stage('CI Checks') {
+            parallel {
+                stage('Ruff') {
+                    agent { label 'python' }
+                    steps {
+                        unstash 'source'
+                        sh 'echo "── Ruff: linting all services ──" && ruff check services/ --output-format=junit > ruff-report.xml || true'
+                    }
+                }
+                stage('mypy') {
+                    agent { label 'python' }
+                    steps {
+                        unstash 'source'
+                        sh 'echo "── mypy: type-checking all services ──" && mypy services/ --ignore-missing-imports --no-error-summary --junit-xml mypy-report.xml || true'
+                    }
+                }
+                stage('Unit Tests') {
+                    agent { label 'python' }
+                    steps {
+                        unstash 'source'
                         sh '''
-                            echo "── Ruff: linting all services ──"
-                            ruff check services/ \
-                                --output-format=junit \
-                                > ruff-report.xml \
-                                || true
-                        '''
-                    },
-                    'mypy': {
-                        sh '''
-                            echo "── mypy: type-checking all services ──"
-                            mypy services/ \
-                                --ignore-missing-imports \
-                                --no-error-summary \
-                                --junit-xml mypy-report.xml \
-                                || true
+                            echo "── Running unit tests across all services ──"
+                            EXIT_CODE=0
+                            for svc in $(echo $SERVICES | tr ',' ' '); do
+                                if [ -d "services/${svc}/tests/unit" ]; then
+                                    echo "▶ Testing ${svc}..."
+                                    pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
+                                    python3 -m pytest "services/${svc}/tests/unit/" --junitxml="unit-${svc}.xml" --tb=short -q || EXIT_CODE=1
+                                fi
+                            done
+                            exit $EXIT_CODE
                         '''
                     }
-                )
+                }
+                stage('Security Scan') {
+                    agent { label 'python' }
+                    steps {
+                        unstash 'source'
+                        sh '''
+                            echo "── OWASP Dependency-Check: scanning ──"
+                            SCAN_PATHS=""
+                            for svc in $(echo $SERVICES | tr ',' ' '); do
+                                [ -f "services/${svc}/requirements.txt" ] && SCAN_PATHS="${SCAN_PATHS} --scan services/${svc}/requirements.txt"
+                            done
+                            dependency-check.sh ${SCAN_PATHS} --project "smart-irrigation" --format HTML --out . || echo "Findings found"
+                        '''
+                    }
+                }
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: '*-report.xml'
+                    junit allowEmptyResults: true, testResults: '*-report.xml, unit-*.xml'
+                    archiveArtifacts artifacts: 'dependency-check-report.html', allowEmptyArchive: true
                 }
             }
         }
 
         // =====================================================================
-        // 3. UNIT TESTS
-        // Runs on: ALL branches
-        // =====================================================================
-        stage('Unit Tests') {
-            agent { label 'python' }
-            steps {
-                unstash 'source'
-                sh '''
-                    echo "── Running unit tests across all services ──"
-                    EXIT_CODE=0
-                    for svc in $(echo $SERVICES | tr ',' ' '); do
-                        if [ -d "services/${svc}/tests/unit" ]; then
-                            echo "▶ Testing ${svc}..."
-                            pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
-                            python3 -m pytest "services/${svc}/tests/unit/" \
-                                --junitxml="unit-${svc}.xml" \
-                                --tb=short \
-                                -q || EXIT_CODE=1
-                        fi
-                    done
-                    exit $EXIT_CODE
-                '''
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: 'unit-*.xml'
-                }
-            }
-        }
-
-        // =====================================================================
-        // 4. INTEGRATION TESTS
+        // 3. INTEGRATION TESTS
         // Runs on: main, develop, PRs targeting main/develop
         // =====================================================================
         stage('Integration Tests') {
