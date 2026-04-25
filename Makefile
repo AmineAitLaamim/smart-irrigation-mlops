@@ -198,7 +198,9 @@ test-all:
 			echo "----------------------------------------------------------------------"; \
 			echo "Testing $$service..."; \
 			echo "----------------------------------------------------------------------"; \
-			PYTHONPATH=services/$$service/src ENV=testing uv run --with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with redis --with asyncpg pytest services/$$service/tests/ || exit 1; \
+			PYTHONPATH=services/$$service:services/$$service/src ENV=testing uv run \
+				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with "pydantic[email]" \
+				pytest services/$$service/tests/ || exit 1; \
 		else \
 			echo "No tests found for $$service, skipping."; \
 		fi; \
