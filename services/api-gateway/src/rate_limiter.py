@@ -1,6 +1,5 @@
 import os
 import time
-from typing import Optional
 from fastapi import HTTPException, Request, status
 import redis
 

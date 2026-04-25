@@ -3,7 +3,9 @@
 # Tests get_upstream_url() routing logic without starting a real server.
 # =============================================================================
 
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 # Patch redis before importing main (avoids connection on import)

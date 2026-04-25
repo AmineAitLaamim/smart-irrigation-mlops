@@ -1,11 +1,11 @@
 import os
 from typing import Optional
 from fastapi import HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
-security = HTTPBearer(auto_error=False)
+# security = HTTPBearer(auto_error=False)
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev_jwt_secret_key_not_for_production")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")

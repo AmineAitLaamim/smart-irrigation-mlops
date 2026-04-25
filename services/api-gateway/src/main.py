@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+import asyncpg
 
 from auth import get_current_user, CurrentUser, refresh_access_token
 from rate_limiter import rate_limit_middleware
@@ -167,7 +168,6 @@ async def validate_zone_ownership(request: Request, zone_id: str):
     except HTTPException:
         raise
 
-    import asyncpg
     db_url = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
     conn_info = db_url.replace("postgresql://", "").split("@")
     user_pass = conn_info[0].split(":")

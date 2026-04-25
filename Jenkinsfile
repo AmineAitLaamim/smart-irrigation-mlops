@@ -74,7 +74,7 @@ pipeline {
                             echo "── mypy: type-checking all services ──"
                             EXIT_CODE=0
                             for svc in $(echo $SERVICES | tr ',' ' '); do
-                                if [ -d "services/${svc}/src" ]; then
+                                if [ -d "services/${svc}/src" ] && ls services/${svc}/src/*.py >/dev/null 2>&1; then
                                     echo "▶ Type checking ${svc}..."
                                     python3 -m mypy "services/${svc}/src" \
                                         --ignore-missing-imports \

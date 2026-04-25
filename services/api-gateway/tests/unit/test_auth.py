@@ -9,7 +9,9 @@ import pytest
 from unittest.mock import MagicMock
 from fastapi import HTTPException
 
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
 from auth import (
@@ -33,11 +35,13 @@ from jose import jwt
 def _make_request(auth_header: str | None = None) -> MagicMock:
     """Build a minimal fake FastAPI Request with an Authorization header."""
     request = MagicMock()
-    headers = {}
+    headers_dict = {}
     if auth_header is not None:
-        headers["Authorization"] = auth_header
-    request.headers = headers
-    request.headers.get = lambda key, default=None: headers.get(key, default)
+        headers_dict["Authorization"] = auth_header
+    
+    # Mock the headers object itself to have a .get() method
+    request.headers = MagicMock()
+    request.headers.get.side_effect = lambda key, default=None: headers_dict.get(key, default)
     return request
 
 
