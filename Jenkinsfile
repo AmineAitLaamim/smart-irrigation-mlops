@@ -320,9 +320,7 @@ pipeline {
     // =========================================================================
     post {
         always {
-            node('python') {
-                cleanWs()
-            }
+            cleanWs()
         }
         failure {
             echo "❌ Pipeline FAILED on branch ${env.BRANCH_NAME} — build #${env.BUILD_NUMBER}"

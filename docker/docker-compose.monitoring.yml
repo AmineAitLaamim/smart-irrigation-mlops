@@ -48,6 +48,7 @@ services:
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - ../jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
     networks:
       - irrigation_net
     healthcheck:

@@ -18,7 +18,7 @@ jenkins:
     Do not modify settings through the UI; edit jenkins/casc.yaml instead.
 
   # Controller runs zero executors — all work delegated to Docker agents
-  numExecutors: 0
+  numExecutors: 1
   mode: EXCLUSIVE
   quietPeriod: 0
 
@@ -50,6 +50,7 @@ jenkins:
           #           Integration Tests, Security Scan (OWASP)
           - name: "python-agent"
             labelString: "python"
+            pullStrategy: PULL_NEVER
             dockerTemplateBase:
               image: "smart-irrigation-python-agent:latest"
             remoteFs: "/home/jenkins/agent"
@@ -63,9 +64,12 @@ jenkins:
           # Used for: Docker Build & Verify, Publish, Deploy
           - name: "docker-agent"
             labelString: "docker"
+            pullStrategy: PULL_NEVER
             dockerTemplateBase:
               image: "smart-irrigation-docker-agent:latest"
-              volumesString: "/var/run/docker.sock:/var/run/docker.sock"
+              privileged: true
+              mounts:
+                - type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
@@ -93,18 +97,23 @@ credentials:
 # ─────────────────────────────────────────────────────────────────────────────
 unclassified:
   location:
-    url: "http://localhost:${JENKINS_PORT:-8081}/"
+    url: "${JENKINS_URL:-http://localhost:8081/}"
 
   globalLibraries:
     libraries:
       - name: "smartIrrigation"
         defaultVersion: "main"
+        allowVersionOverride: true
         retriever:
           legacySCM:
             scm:
               git:
-                remote: "https://github.com/${GITHUB_USER}/smart-irrigation.git"
-                credentialsId: "github-creds"
+                userRemoteConfigs:
+                  - url: "https://github.com/smart-irrigation-mlops/smart-irrigation.git"
+                    credentialsId: "github-creds"
+                branches:
+                  - name: "**"
+            libraryPath: "jenkins/shared-lib"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed Job — auto-creates the pipeline job on first boot
@@ -119,7 +128,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url("https://github.com/${GITHUB_USER}/smart-irrigation.git")
+                  url("https://github.com/${System.getenv('GITHUB_USER')}/smart-irrigation.git")
                   credentials('github-creds')
                 }
                 branches('*/main', '*/develop', '**')

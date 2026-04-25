@@ -78,4 +78,3 @@ def isIntegrationBranch() {
     return false
 }
 
-return this
