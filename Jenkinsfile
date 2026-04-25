@@ -55,21 +55,29 @@ pipeline {
         // 2. CI CHECKS — Parallel Lint, Unit Tests, and Security Scan
         // =====================================================================
         stage('CI Checks') {
-            agent { label 'python' }
             parallel {
                 stage('Ruff') {
+                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh 'echo "── Ruff: linting all services ──" && ruff check services/ --output-format=junit > ruff-report.xml || true'
                     }
+                    post {
+                        always { junit allowEmptyResults: true, testResults: 'ruff-report.xml' }
+                    }
                 }
                 stage('mypy') {
+                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh 'echo "── mypy: type-checking all services ──" && mypy services/ --ignore-missing-imports --no-error-summary --junit-xml mypy-report.xml --explicit-package-bases || true'
                     }
+                    post {
+                        always { junit allowEmptyResults: true, testResults: 'mypy-report.xml' }
+                    }
                 }
                 stage('Unit Tests') {
+                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh '''
@@ -87,15 +95,19 @@ pipeline {
                                         continue
                                     }
                                     python3 -m pytest "services/${svc}/tests/unit/" \
-                                        --junitxml="${WORKSPACE}/unit-${svc}.xml" \
+                                        --junitxml="unit-${svc}.xml" \
                                         --tb=short -q || EXIT_CODE=1
                                 fi
                             done
                             exit $EXIT_CODE
                         '''
                     }
+                    post {
+                        always { junit allowEmptyResults: true, testResults: 'unit-*.xml' }
+                    }
                 }
                 stage('Security Scan') {
+                    agent { label 'python' }
                     steps {
                         unstash 'source'
                         sh '''
@@ -107,12 +119,9 @@ pipeline {
                             dependency-check.sh ${SCAN_PATHS} --project "smart-irrigation" --format HTML --out . || echo "Findings found"
                         '''
                     }
-                }
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: '*-report.xml, unit-*.xml'
-                    archiveArtifacts artifacts: 'dependency-check-report.html', allowEmptyArchive: true
+                    post {
+                        always { archiveArtifacts artifacts: '**/dependency-check-report.html', allowEmptyArchive: true }
+                    }
                 }
             }
         }
