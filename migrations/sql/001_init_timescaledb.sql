@@ -1,9 +1,8 @@
 -- ================================================================
 -- Migration 001 : Initial TimescaleDB Schema
--- Sprint  : S1
--- Tables  : schema_migrations, zones, sensor_metadata,
---           sensor_readings (hypertable), irrigation_events (hypertable)
 -- ================================================================
+
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 -- ── 0. Tracking table ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS schema_migrations (

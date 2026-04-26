@@ -5,5 +5,5 @@
 --       only add new \i lines at the bottom
 -- ================================================================
 
-\i /migrations/sql/001_init_timescaledb.sql
-\i /migrations/sql/005_user_and_zone_ownership.sql
+\i /docker-entrypoint-initdb.d/sql/001_init_timescaledb.sql
+\i /docker-entrypoint-initdb.d/sql/005_user_and_zone_ownership.sql

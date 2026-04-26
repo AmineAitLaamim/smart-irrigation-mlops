@@ -173,7 +173,7 @@ endif
 # -----------------------------------------------------------------------------
 .PHONY: migrate
 migrate:
-	@export $$(grep -v '^\s*#' .env | grep -v '^\s*$$' | xargs); \
+	@export $$(grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/\r$$//' | xargs); \
 	docker exec -i timescaledb psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} \
 		-f /docker-entrypoint-initdb.d/run_migrations.sql
 	@echo "Migrations applied."
