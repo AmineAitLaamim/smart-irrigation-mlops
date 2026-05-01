@@ -166,27 +166,25 @@ async def gateway_proxy(request: Request, path: str):
 
 async def validate_zone_ownership(request: Request, zone_id: str):
     try:
-        user = await get_current_user(request)
+        user_payload = await get_current_user_payload(request)
     except HTTPException:
         raise
 
-    db_url = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
-    conn_info = db_url.replace("postgresql://", "").split("@")
-    user_pass = conn_info[0].split(":")
-    host_db = conn_info[1].split("/")
-    host_port = host_db[0].split(":")
+    # Extract user_id and is_admin from payload
+    user_id = user_payload.get("sub")
+    is_admin = user_payload.get("is_admin", False)
 
+    if is_admin:
+        return # Admin can do anything
+
+    db_url = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
+    
     try:
-        conn = await asyncpg.connect(
-            host=host_port[0],
-            port=int(host_port[1]) if len(host_port) > 1 else 5432,
-            user=user_pass[0],
-            password=user_pass[1],
-            database=host_db[1],
-        )
+        # Use simpler connection logic if possible, or keep existing for robustness
+        conn = await asyncpg.connect(dsn=db_url)
         row = await conn.fetchrow(
-            "SELECT user_id FROM zones WHERE id = $1",
-            int(zone_id),
+            "SELECT owner_id, source FROM zones WHERE zone_id = $1",
+            zone_id,
         )
         await conn.close()
 
@@ -196,17 +194,23 @@ async def validate_zone_ownership(request: Request, zone_id: str):
                 detail="Zone not found",
             )
 
-        if row["user_id"] != user.user_id:
+        if row["source"] == "yaml":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="YAML-defined zones are read-only",
+            )
+
+        if not row["owner_id"] or str(row["owner_id"]) != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to modify this zone",
             )
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to validate zone ownership",
+            detail=f"Failed to validate zone ownership: {str(e)}",
         )
 
 
