@@ -1,3 +1,4 @@
+
 # =============================================================================
 # Smart Irrigation System — Monitoring + CI/CD Stack
 # Owner: DevOps (DO-01, DO-02, DO-03)
@@ -50,8 +51,6 @@ services:
       - ../jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
     networks:
       - irrigation_net
-    entrypoint: >
-      bash -c "chmod 666 /var/run/docker.sock && /usr/local/bin/jenkins.sh"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
       interval: 30s

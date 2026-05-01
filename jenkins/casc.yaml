@@ -109,7 +109,7 @@ unclassified:
             scm:
               git:
                 userRemoteConfigs:
-                  - url: "https://github.com/smart-irrigation-mlops/smart-irrigation.git"
+                  - url: "https://github.com/AmineAitLaamim/smart-irrigation.git"
                     credentialsId: "github-creds"
                 branches:
                   - name: "**"
