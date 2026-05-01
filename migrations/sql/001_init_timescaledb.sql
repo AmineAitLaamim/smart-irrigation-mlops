@@ -1,14 +1,15 @@
 -- ================================================================
 -- Migration 001 : Initial TimescaleDB Schema
--- Sprint  : S1
--- Tables  : schema_migrations, zones, sensor_metadata,
---           sensor_readings (hypertable), irrigation_events (hypertable)
 -- ================================================================
+
+CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
 -- ── 0. Tracking table ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS schema_migrations (
-    version    VARCHAR(50) PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    version     VARCHAR(50)  PRIMARY KEY,
+    description TEXT,
+    checksum    VARCHAR(64),
+    applied_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 -- ── 1. Roles per service (passwords via environment variables) ─
@@ -150,6 +151,20 @@ GRANT SELECT, INSERT, UPDATE ON zones TO app_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
 
 -- ── 7. Record migration ───────────────────────────────────────
-INSERT INTO schema_migrations (version)
-VALUES ('001')
-ON CONFLICT DO NOTHING;
+INSERT INTO schema_migrations (version, description)
+VALUES ('001', 'Initial TimescaleDB Schema')
+ON CONFLICT (version) DO UPDATE SET description = EXCLUDED.description;
+
+-- ── DOWN ────────────────────────────────────────────────────────
+/*
+BEGIN;
+DROP TABLE IF EXISTS irrigation_events CASCADE;
+DROP TABLE IF EXISTS sensor_readings CASCADE;
+DROP TABLE IF EXISTS sensor_metadata CASCADE;
+DROP TABLE IF EXISTS zones CASCADE;
+DROP TABLE IF EXISTS schema_migrations;
+DROP ROLE IF EXISTS ingestion_user;
+DROP ROLE IF EXISTS reader_user;
+DROP ROLE IF EXISTS app_user;
+COMMIT;
+*/

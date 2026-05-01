@@ -13,8 +13,8 @@ RUN uv venv && uv pip install --no-cache -r requirements.txt
 
 COPY src/ ./src/
 
-EXPOSE 8004
+EXPOSE 8005
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["uv", "run", "--no-project", "python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8004"]
+CMD ["uv", "run", "--no-project", "python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8005"]

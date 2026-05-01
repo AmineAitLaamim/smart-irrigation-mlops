@@ -1,20 +1,20 @@
 import asyncio
 import json
 import os
+from datetime import datetime
 from typing import Any, Dict
 
 import redis.asyncio as redis
 
 from .database import stats
-from .db_writer import insert_data_quality_event, insert_sensor_reading
-from .validator import validate_reading
+from .etl import run_streaming
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-REDIS_CHANNEL_SENSOR_DATA = os.getenv(
-    "REDIS_CHANNEL_SENSOR_DATA", "sensor:data"
-)
 REDIS_CHANNEL_INGESTION_PROCESSED = os.getenv(
     "REDIS_CHANNEL_INGESTION_PROCESSED", "ingestion:processed"
+)
+REDIS_CHANNEL_FEATURES_COMPUTED = os.getenv(
+    "REDIS_CHANNEL_FEATURES_COMPUTED", "features:computed"
 )
 
 
@@ -27,7 +27,7 @@ class RedisConsumer:
     async def connect(self) -> None:
         self._redis = redis.from_url(REDIS_URL, decode_responses=True)
         self._pubsub = self._redis.pubsub()
-        await self._pubsub.subscribe(REDIS_CHANNEL_SENSOR_DATA)
+        await self._pubsub.subscribe(REDIS_CHANNEL_INGESTION_PROCESSED)
 
     async def disconnect(self) -> None:
         if self._pubsub:
@@ -36,10 +36,10 @@ class RedisConsumer:
         if self._redis:
             await self._redis.close()
 
-    async def _publish_processed(self, payload: Dict[str, Any]) -> None:
+    async def _publish_computed(self, payload: Dict[str, Any]) -> None:
         if self._redis:
             await self._redis.publish(
-                REDIS_CHANNEL_INGESTION_PROCESSED, json.dumps(payload)
+                REDIS_CHANNEL_FEATURES_COMPUTED, json.dumps(payload)
             )
 
     async def _process_one(self, message: Dict[str, Any]) -> None:
@@ -50,42 +50,28 @@ class RedisConsumer:
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as exc:
-            await stats.increment(processed=True, error=True)
-            print(f"Invalid JSON on {REDIS_CHANNEL_SENSOR_DATA}: {exc}")
+            await stats.increment(error=True)
+            print(f"Invalid JSON on {REDIS_CHANNEL_INGESTION_PROCESSED}: {exc}")
             return
 
-        await stats.increment(processed=True)
+        zone_id = data.get("zone_id")
+        sensor_id = data.get("sensor_id")
+        timestamp = data.get("timestamp")
 
-        result = await validate_reading(data)
+        if not zone_id or not sensor_id:
+            await stats.increment(error=True)
+            print("Missing zone_id or sensor_id in ingestion:processed message")
+            return
 
-        if result.is_valid:
-            await insert_sensor_reading(
-                zone_id=data.get("zone_id"),
-                sensor_id=data.get("sensor_id"),
-                timestamp=data.get("timestamp"),
-                sensor_type=result.sensor_type,
-                value=data.get("value"),
-            )
-            await stats.increment(valid=True)
-        else:
-            for anomaly in result.anomalies:
-                # unknown_zone cannot be inserted because zone_id FK fails
-                if anomaly.get("event_type") == "unknown_zone":
-                    await stats.increment(anomaly=True)
-                    continue
-                await insert_data_quality_event(anomaly)
-                await stats.increment(anomaly=True)
+        features = await run_streaming(zone_id, sensor_id)
 
-        # Notify downstream services
-        await self._publish_processed(
-            {
-                "zone_id": data.get("zone_id"),
-                "sensor_id": data.get("sensor_id"),
-                "timestamp": data.get("timestamp"),
-                "valid": result.is_valid,
-                "sensor_type": result.sensor_type,
-            }
-        )
+        await self._publish_computed({
+            "zone_id": zone_id,
+            "sensor_id": sensor_id,
+            "timestamp": timestamp,
+            "computed_at": datetime.utcnow().isoformat(),
+            "features": features,
+        })
 
     async def run(self) -> None:
         self._running = True

@@ -22,6 +22,14 @@ CREATE TRIGGER set_users_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Record migration
-INSERT INTO schema_migrations (version)
-VALUES ('005')
-ON CONFLICT DO NOTHING;
+INSERT INTO schema_migrations (version, description)
+VALUES ('005', 'User and Zone Ownership')
+ON CONFLICT (version) DO UPDATE SET description = EXCLUDED.description;
+
+-- ── DOWN ────────────────────────────────────────────────────────
+/*
+BEGIN;
+DROP TABLE IF EXISTS users CASCADE;
+DELETE FROM schema_migrations WHERE version = '005';
+COMMIT;
+*/

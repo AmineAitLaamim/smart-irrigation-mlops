@@ -38,7 +38,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG DOCKER_GID=999
 RUN groupadd -f -g ${DOCKER_GID} docker 2>/dev/null || groupadd -f docker
 RUN usermod -aG docker jenkins
+
+# ── Fix socket group at container start ────────────────────────────────────
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 USER jenkins
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # ── Bundle the JCasC configuration ─────────────────────────────────────────
 COPY casc.yaml /var/jenkins_home/casc.yaml

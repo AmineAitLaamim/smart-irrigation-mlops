@@ -15,7 +15,7 @@ class CurrentUser(BaseModel):
     email: Optional[str] = None
 
 
-async def get_current_user(request: Request) -> CurrentUser:
+async def get_current_user_payload(request: Request) -> dict:
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(
@@ -41,6 +41,7 @@ async def get_current_user(request: Request) -> CurrentUser:
 
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,6 +49,9 @@ async def get_current_user(request: Request) -> CurrentUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+async def get_current_user(request: Request) -> CurrentUser:
+    payload = await get_current_user_payload(request)
+    
     if payload.get("type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

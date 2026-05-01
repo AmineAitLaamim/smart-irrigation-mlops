@@ -4,7 +4,10 @@ import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from passlib.context import CryptContext
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
+from asyncpg import Connection
+from src.database import get_db_conn
 
 # Configuration
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev_jwt_secret_key")
@@ -26,20 +29,23 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 blacklist_client = redis.from_url(REDIS_TOKEN_BLACKLIST_URL, decode_responses=True)
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
-def create_tokens(user_id: str) -> Tuple[str, str]:
+def create_tokens(user_id: str, is_admin: bool = False) -> Tuple[str, str]:
     now = datetime.now(timezone.utc)
     
     access_expire = now + timedelta(minutes=JWT_ACCESS_EXPIRE_MIN)
     access_payload = {
         "sub": user_id,
         "exp": access_expire,
-        "type": "access"
+        "type": "access",
+        "is_admin": is_admin
     }
     access_token = jwt.encode(access_payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     
@@ -97,3 +103,22 @@ async def verify_token(token: str, expected_type: str = "access") -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+async def get_current_user(token: str = Depends(oauth2_scheme), conn: Connection = Depends(get_db_conn)):
+    payload = await verify_token(token)
+    user_id = payload.get("sub")
+    try:
+        from uuid import UUID
+        user_uuid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user ID in token")
+        
+    user = await conn.fetchrow("SELECT user_id, email, full_name, is_admin, created_at FROM users WHERE user_id = $1", user_uuid)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
+
+async def get_admin_user(current_user = Depends(get_current_user)):
+    if not current_user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required")
+    return current_user
