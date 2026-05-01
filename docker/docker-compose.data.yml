@@ -117,3 +117,45 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Data Quality — comprehensive validation & malfunction detection
+  # Subscribes to ingestion:processed, applies configurable quality rules
+  # Detects stuck values, sudden jumps, flatlines, rate-of-change violations
+  # Writes anomalies to data_quality_events; exposes Prometheus /metrics
+  # ---------------------------------------------------------------------------
+  data-quality:
+    build:
+      context: ../services/data-quality
+      dockerfile: Dockerfile
+    image: data-quality:latest
+    container_name: data-quality
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      REDIS_CHANNEL_INGESTION_PROCESSED: ${REDIS_CHANNEL_INGESTION_PROCESSED:-ingestion:processed}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-2}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      DATA_QUALITY_PORT: ${DATA_QUALITY_PORT:-8005}
+      BATCH_SCAN_INTERVAL_SECONDS: ${BATCH_SCAN_INTERVAL_SECONDS:-300}
+      HEALTH_UPDATE_INTERVAL_SECONDS: ${HEALTH_UPDATE_INTERVAL_SECONDS:-60}
+      QUALITY_RULES_CACHE_TTL: ${QUALITY_RULES_CACHE_TTL:-30}
+    ports:
+      - "${DATA_QUALITY_PORT:-8005}:8005"
+    networks:
+      - irrigation_net
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      data-ingestion:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
