@@ -121,27 +121,24 @@ jobs:
   - script: |
       pipelineJob('smart-irrigation-pipeline') {
         description('CI/CD pipeline for Smart Irrigation MLOps microservices')
-
         definition {
           cpsScm {
             scm {
               git {
                 remote {
-                  url("https://github.com/${GITHUB_USER}/smart-irrigation.git")
+                  url("https://github.com/AmineAitLaamim/smart-irrigation.git")
                   credentials('github-creds')
                 }
-                branches('*/main', '*/develop', '**')
+                branches('*/main', '*/develop', '*/devops', '**')
               }
             }
             scriptPath('Jenkinsfile')
             lightweight(true)
           }
         }
-
         triggers {
           githubPush()
         }
-
         properties {
           pipelineTriggers {
             triggers {
