@@ -4,10 +4,28 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from .database import db, stats
+try:
+    from .database import db, stats
+    from .feature_computation import (
+        FEATURE_MODEL_VERSION,
+        ROLLUP_WINDOWS,
+        compute_window_features,
+        normalize_sensor_rows,
+        parse_window_to_interval,
+        serialize_feature_payload,
+    )
+except ImportError:  # pragma: no cover - test import path fallback
+    from database import db, stats
+    from feature_computation import (
+        FEATURE_MODEL_VERSION,
+        ROLLUP_WINDOWS,
+        compute_window_features,
+        normalize_sensor_rows,
+        parse_window_to_interval,
+        serialize_feature_payload,
+    )
 
 OUTLIER_ZSCORE_THRESHOLD = float(os.getenv("OUTLIER_ZSCORE_THRESHOLD", "3.0"))
-ROLLUP_WINDOWS = os.getenv("ROLLUP_WINDOWS", "30m,1h,3h,24h").split(",")
 
 
 def _parse_timestamp(ts: Any) -> datetime:
@@ -247,10 +265,18 @@ async def compute_rolling_features(
     all_features: Dict[str, float] = {}
     computed_at = now
     insert_values = []
+    zone_row = await db.fetchrow(
+        """
+        SELECT soil_type
+        FROM zones
+        WHERE zone_id = $1
+        """,
+        zone_id,
+    )
+    soil_type = zone_row["soil_type"] if zone_row else None
 
     for window in windows:
-        # Parse window string like '30m', '1h', '3h', '24h'
-        interval = _parse_window_to_interval(window)
+        interval = parse_window_to_interval(window)
         start = now - interval
 
         rows = await db.fetch(
@@ -268,63 +294,28 @@ async def compute_rolling_features(
             start,
             now,
         )
-
-        moistures = [r["moisture"] for r in rows]
-        temps = [
-            r["temperature"]
-            for r in rows
-            if r["temperature"] is not None and r["temperature"] != -1.0
-        ]
-
-        if moistures:
-            mean_m = sum(moistures) / len(moistures)
-            variance_m = sum((x - mean_m) ** 2 for x in moistures) / len(moistures) if len(moistures) > 0 else 0
-            std_m = math.sqrt(variance_m) if variance_m > 0 else 0
-            min_m = min(moistures)
-            max_m = max(moistures)
-            roc_m = moistures[-1] - moistures[0] if len(moistures) > 1 else 0.0
-
-            insert_values.extend([
-                (computed_at, zone_id, sensor_id, window, "mean_moisture", mean_m, "v1"),
-                (computed_at, zone_id, sensor_id, window, "std_moisture", std_m, "v1"),
-                (computed_at, zone_id, sensor_id, window, "min_moisture", min_m, "v1"),
-                (computed_at, zone_id, sensor_id, window, "max_moisture", max_m, "v1"),
-                (computed_at, zone_id, sensor_id, window, "rate_of_change_moisture", roc_m, "v1"),
-                (computed_at, zone_id, sensor_id, window, "variance_moisture", variance_m, "v1"),
-            ])
-
-            all_features.update({
-                f"mean_moisture_{window}": mean_m,
-                f"std_moisture_{window}": std_m,
-                f"min_moisture_{window}": min_m,
-                f"max_moisture_{window}": max_m,
-                f"roc_moisture_{window}": roc_m,
-            })
-
-        if temps:
-            mean_t = sum(temps) / len(temps)
-            variance_t = sum((x - mean_t) ** 2 for x in temps) / len(temps) if len(temps) > 0 else 0
-            std_t = math.sqrt(variance_t) if variance_t > 0 else 0
-            min_t = min(temps)
-            max_t = max(temps)
-            roc_t = temps[-1] - temps[0] if len(temps) > 1 else 0.0
-
-            insert_values.extend([
-                (computed_at, zone_id, sensor_id, window, "mean_temperature", mean_t, "v1"),
-                (computed_at, zone_id, sensor_id, window, "std_temperature", std_t, "v1"),
-                (computed_at, zone_id, sensor_id, window, "min_temperature", min_t, "v1"),
-                (computed_at, zone_id, sensor_id, window, "max_temperature", max_t, "v1"),
-                (computed_at, zone_id, sensor_id, window, "rate_of_change_temperature", roc_t, "v1"),
-                (computed_at, zone_id, sensor_id, window, "variance_temperature", variance_t, "v1"),
-            ])
-
-            all_features.update({
-                f"mean_temperature_{window}": mean_t,
-                f"std_temperature_{window}": std_t,
-                f"min_temperature_{window}": min_t,
-                f"max_temperature_{window}": max_t,
-                f"roc_temperature_{window}": roc_t,
-            })
+        moisture_values, temperature_values = normalize_sensor_rows([dict(row) for row in rows])
+        features = compute_window_features(
+            window,
+            moisture_values=moisture_values,
+            temperature_values=temperature_values,
+            soil_type=soil_type,
+        )
+        insert_values.extend(
+            [
+                (
+                    computed_at,
+                    zone_id,
+                    sensor_id,
+                    feature.window_size,
+                    feature.feature_name,
+                    feature.feature_value,
+                    feature.model_version,
+                )
+                for feature in features
+            ]
+        )
+        all_features.update(serialize_feature_payload(features))
 
     if insert_values:
         await db.executemany(
@@ -338,22 +329,15 @@ async def compute_rolling_features(
             """,
             insert_values,
         )
-        await stats.increment(features=len(insert_values))
+        for _ in insert_values:
+            await stats.increment(features=True)
 
     return all_features
 
 
 def _parse_window_to_interval(window: str) -> timedelta:
     """Convert a window string like '30m', '1h', '3h', '24h' to a timedelta."""
-    window = window.strip()
-    if window.endswith("m"):
-        return timedelta(minutes=int(window[:-1]))
-    elif window.endswith("h"):
-        return timedelta(hours=int(window[:-1]))
-    elif window.endswith("d"):
-        return timedelta(days=int(window[:-1]))
-    else:
-        return timedelta(hours=1)
+    return parse_window_to_interval(window)
 
 
 async def get_active_sensors() -> List[Tuple[str, str]]:

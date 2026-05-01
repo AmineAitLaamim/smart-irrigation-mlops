@@ -1,0 +1,64 @@
+{
+  "title": "ML Pipeline Overview",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Prediction Throughput",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(model_server_predictions_total[5m])",
+          "legendFormat": "predictions/sec"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Prediction Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(model_server_prediction_latency_seconds_sum[5m]) / rate(model_server_prediction_latency_seconds_count[5m])",
+          "legendFormat": "avg latency"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Drift Signals",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "drift_monitor_page_hinkley_score",
+          "legendFormat": "page_hinkley"
+        },
+        {
+          "expr": "drift_monitor_kl_divergence",
+          "legendFormat": "kl_divergence"
+        },
+        {
+          "expr": "drift_monitor_mean_error",
+          "legendFormat": "mean_error"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Irrigation Recommendations",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "increase(irrigation_controller_events_total[1h])",
+          "legendFormat": "events/hour"
+        },
+        {
+          "expr": "irrigation_controller_last_recommended_volume",
+          "legendFormat": "last_volume"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s"
+}

@@ -6,8 +6,12 @@ from typing import Any, Dict
 
 import redis.asyncio as redis
 
-from .database import stats
-from .etl import run_streaming
+try:
+    from .database import stats
+    from .etl import run_streaming
+except ImportError:  # pragma: no cover - test import path fallback
+    from database import stats
+    from etl import run_streaming
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 REDIS_CHANNEL_INGESTION_PROCESSED = os.getenv(
@@ -70,6 +74,7 @@ class RedisConsumer:
             "sensor_id": sensor_id,
             "timestamp": timestamp,
             "computed_at": datetime.utcnow().isoformat(),
+            "feature_model_version": os.getenv("FEATURE_MODEL_VERSION", "v1"),
             "features": features,
         })
 

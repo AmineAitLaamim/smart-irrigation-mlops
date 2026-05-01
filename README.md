@@ -13,6 +13,9 @@ Detailed documentation is available in the `docs/` directory:
 - **[Architecture](./docs/ARCHITECTURE.md)**: System design and data flow.
 - **[Database Schema](./docs/DATABASE_SCHEMA.md)**: Tables, hypertables, and views.
 - **[MLOps Pipeline](./docs/ML_PIPELINE.md)**: Feature store, model lifecycle, and monitoring.
+- **[Model Server API](./docs/MODEL_SERVER_API.md)**: Prediction and model metadata endpoints.
+- **[Feature Engineering Guide](./docs/FEATURE_ENGINEERING_GUIDE.md)**: Derived features and agricultural rationale.
+- **[Drift Monitoring](./docs/DRIFT_MONITORING.md)**: Drift signals, thresholds, and alert flow.
 - **[Setup Guide](./docs/SETUP_GUIDE.md)**: Deployment and local development instructions.
 - **[Project Tree](./docs/PROJECT_TREE.md)**: Complete directory structure.
 - **[Branch Naming](./docs/BRANCH_NAMING.md)**: Git workflow conventions.
@@ -23,6 +26,12 @@ Detailed documentation is available in the `docs/` directory:
 - **ML Feature Store**: Versioned time-series features for training and inference.
 - **Security**: RBAC with zone-level ownership enforced at the gateway.
 - **Observability**: Prometheus/Grafana monitoring and shadow model comparison.
+
+## 🤖 MLOps Development
+- Install the ML stack from the root project dependencies to work on training and evaluation.
+- Generate the exploration report with `python -m mlops.exploration`.
+- Build a training-ready dataset from TimescaleDB with the repo-level `mlops.dataset_pipeline` utilities.
+- Train baseline and XGBoost models with `python -m mlops.training`.
 
 ## 📦 Service Ports
 | Service | Port |

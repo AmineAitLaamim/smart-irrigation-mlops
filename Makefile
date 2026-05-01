@@ -199,12 +199,17 @@ test-all:
 			echo "Testing $$service..."; \
 			echo "----------------------------------------------------------------------"; \
 			PYTHONPATH=services/$$service:services/$$service/src ENV=testing uv run \
-				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with "pydantic[email]" \
+				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with prometheus-client --with "pydantic[email]" \
 				pytest services/$$service/tests/ || exit 1; \
 		else \
 			echo "No tests found for $$service, skipping."; \
 		fi; \
 	done
+
+.PHONY: test-all-psh
+test-all-psh:
+	@echo "Running all unit and integration tests using PowerShell..."
+	@powershell -NoProfile -Command "$$services = @('api-gateway','data-ingestion','drift-monitor','feature-engineering','irrigation-controller','model-server','notification-service','sensor-simulator','user-service'); $$failed = $$false; foreach ($$service in $$services) { $$testPath = Join-Path 'services' $$service; $$testDir = Join-Path $$testPath 'tests'; if (Test-Path $$testDir) { $$tests = Get-ChildItem -Path $$testDir -Recurse -Filter 'test_*.py'; if ($$tests.Count -gt 0) { Write-Host '----------------------------------------------------------------------'; Write-Host \"Testing $$service...\"; Write-Host '----------------------------------------------------------------------'; $$env:PYTHONPATH = \"services/$$service;services/$$service/src\"; uv run --with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with prometheus-client --with 'pydantic[email]' pytest $$testDir; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; break } } else { Write-Host \"No tests found for $$service, skipping.\" } } else { Write-Host \"No tests found for $$service, skipping.\" } }; if ($$failed) { exit 1 }"
 
 .PHONY: smoke
 smoke:

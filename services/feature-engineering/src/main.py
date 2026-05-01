@@ -6,9 +6,14 @@ from datetime import datetime
 from fastapi import FastAPI
 import uvicorn
 
-from .database import db, stats
-from .etl import run_batch
-from .redis_consumer import consumer
+try:
+    from .database import db, stats
+    from .etl import run_batch
+    from .redis_consumer import consumer
+except ImportError:  # pragma: no cover - test import path fallback
+    from database import db, stats
+    from etl import run_batch
+    from redis_consumer import consumer
 
 BATCH_INTERVAL_SECONDS = int(os.getenv("BATCH_INTERVAL_SECONDS", "300"))
 FEATURE_ENGINEERING_PORT = int(os.getenv("FEATURE_ENGINEERING_PORT", "8004"))
