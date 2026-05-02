@@ -255,22 +255,36 @@ def log_training_to_mlflow(
 ) -> dict[str, Any]:
     imports = _require_training_stack()
     mlflow = imports["mlflow"]
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
     mlflow.set_experiment(settings.mlflow_experiment_name)
     feature_columns = select_feature_columns(dataset.rows)
-    estimator = fit_estimator_on_rows(
-        best_run.model_name,
-        best_run.params,
-        dataset.rows,
-        feature_columns,
-    )
+    
+    # We want to train on raw features now, because the Pipeline will handle scaling
+    # But wait, select_feature_columns currently picks the _scaled ones if they exist.
+    # Let's get the raw column names.
+    raw_feature_columns = [col.replace("_scaled", "") for col in feature_columns]
+    
+    train_x, train_y = _rows_to_matrix(dataset.rows, raw_feature_columns)
+    
+    # Create a pipeline with a scaler and the best estimator
+    inner_estimator = build_estimator(best_run.model_name, best_run.params)
+    pipeline = Pipeline([
+        ("scaler", StandardScaler()),
+        ("regressor", inner_estimator)
+    ])
+    
+    pipeline.fit(train_x, train_y)
 
     with mlflow.start_run(run_name="ml03-model-training"):
         mlflow.log_params(
             {
                 "registered_model_name": settings.mlflow_registered_model_name,
                 "feature_model_version": dataset.metadata["model_version"],
-                "feature_count": dataset.metadata["feature_count"],
+                "feature_count": len(raw_feature_columns),
+                "features": ",".join(raw_feature_columns),
                 "target_horizon_minutes": dataset.metadata["target_horizon_minutes"],
             }
         )
@@ -292,25 +306,27 @@ def log_training_to_mlflow(
         mlflow.log_dict(asdict(best_run), "best_run.json")
         model_card_path = write_model_card(best_run, dataset)
         mlflow.log_artifact(str(model_card_path))
+        
         input_example = train_x[:5]
-        if best_run.model_name == "xgboost":
-            mlflow.xgboost.log_model(
-                estimator,
-                artifact_path="model",
-                registered_model_name=settings.mlflow_registered_model_name,
-                input_example=input_example,
-            )
-        else:
-            mlflow.sklearn.log_model(
-                estimator,
-                artifact_path="model",
-                registered_model_name=settings.mlflow_registered_model_name,
-                input_example=input_example,
-            )
+        # Note: we use mlflow.sklearn.log_model even for xgboost because it's wrapped in a sklearn Pipeline
+        mlflow.sklearn.log_model(
+            pipeline,
+            artifact_path="model",
+            registered_model_name=settings.mlflow_registered_model_name,
+            input_example=input_example,
+        )
+
+        client = mlflow.tracking.MlflowClient()
+        latest_versions = client.get_latest_versions(
+            settings.mlflow_registered_model_name, stages=["None"]
+        )
+        version = latest_versions[0].version if latest_versions else "1"
+
         return {
             "run_id": mlflow.active_run().info.run_id,
             "best_model": best_run.model_name,
             "model_card_path": str(model_card_path),
+            "version": version,
         }
 
 

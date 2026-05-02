@@ -12,7 +12,7 @@ The Smart Irrigation System is an AI-driven, event-based microservices platform 
 ## System Components
 
 ### 1. Data Ingestion & Quality
-- **Sensor Simulator**: Generates synthetic telemetry (moisture, temperature) for testing.
+- **Sensor Simulator**: Generates synthetic telemetry (moisture, temperature). It dynamically discovers active zones via the User Service API and implements realistic moisture depletion models tailored to specific soil types (sandy, loam, clay). It publishes payload directly to Redis `sensor:data` channel.
 - **Data Ingestion**: The entry point. Validates readings against physical plausibility bounds.
 - **Data Quality**: Audits the pipeline for sensor malfunctions (stuck values, sudden jumps) and generates health scores.
 

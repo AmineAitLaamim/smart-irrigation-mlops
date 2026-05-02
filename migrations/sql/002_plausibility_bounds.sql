@@ -31,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_data_quality_events_severity
     ON data_quality_events (severity) WHERE severity = 'critical';
 
 -- ── 2. Seed Zones with Plausibility Bounds ──────────────────────
+/*
 INSERT INTO zones (zone_id, zone_name, soil_type, crop_type, moisture_min, moisture_max,
                    min_plausible, max_plausible, active)
 VALUES
@@ -45,8 +46,10 @@ VALUES
 ON CONFLICT (zone_id) DO UPDATE
     SET min_plausible = EXCLUDED.min_plausible,
         max_plausible = EXCLUDED.max_plausible;
+*/
 
 -- ── 3. Seed Sensor Metadata ─────────────────────────────────────
+/*
 INSERT INTO sensor_metadata (sensor_id, zone_id, sensor_type, active)
 VALUES
     ('sensor_a1', 'zone_a', 'moisture', TRUE),
@@ -58,6 +61,7 @@ VALUES
     ('sensor_d1', 'zone_d', 'moisture', TRUE),
     ('sensor_d2', 'zone_d', 'temperature', TRUE)
 ON CONFLICT (sensor_id) DO NOTHING;
+*/
 
 -- ── 4. Permissions for ingestion_user ───────────────────────────
 GRANT INSERT, SELECT ON data_quality_events TO ingestion_user;

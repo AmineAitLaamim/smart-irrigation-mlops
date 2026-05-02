@@ -1,11 +1,11 @@
 apiVersion: 1
 
 providers:
-  - name: "smart-irrigation"
+  - name: Smart Irrigation Dashboards
     orgId: 1
-    folder: ""
+    folder: Smart Irrigation
     type: file
     disableDeletion: false
-    updateIntervalSeconds: 30
+    editable: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /var/lib/grafana/dashboards

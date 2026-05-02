@@ -21,7 +21,9 @@ services:
   # UI available at http://localhost:8082 (internal 8080 mapped to avoid clash)
   # ---------------------------------------------------------------------------
   airflow:
-    image: apache/airflow:2.8.0-python3.11
+    build:
+      context: ../airflow
+      dockerfile: Dockerfile
     container_name: airflow
     restart: unless-stopped
     env_file: ../.env
@@ -34,10 +36,16 @@ services:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
+    command: >
+      bash -c "
+      airflow db migrate &&
+      exec airflow standalone
+      "
     ports:
       - "8082:8080"
     volumes:
       - ../airflow/dags:/opt/airflow/dags:ro
+      - ../mlops:/opt/mlops:ro
     networks:
       - irrigation_net
     depends_on:
@@ -65,10 +73,6 @@ services:
     restart: unless-stopped
     env_file: ../.env
     environment:
-      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
-      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       MLFLOW_PRODUCTION_STAGE: ${MLFLOW_PRODUCTION_STAGE:-Production}
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
@@ -85,7 +89,7 @@ services:
       mlflow:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/v1/model/info"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/v1/model/info')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -117,7 +121,7 @@ services:
       model-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8502/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8502/health')"]
       interval: 20s
       timeout: 5s
       retries: 5
@@ -151,7 +155,7 @@ services:
       model-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8503/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8503/health')"]
       interval: 20s
       timeout: 5s
       retries: 5

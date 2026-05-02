@@ -10,10 +10,13 @@ FEATURE_MODEL_VERSION = os.getenv("FEATURE_MODEL_VERSION", "v1")
 
 SOIL_TYPE_FACTORS = {
     "sand": {"water_retention_factor": 0.7, "drainage_factor": 1.3},
-    "sandy": {"water_retention_factor": 0.72, "drainage_factor": 1.25},
+    "sandy_loam": {"water_retention_factor": 0.85, "drainage_factor": 1.15},
     "loam": {"water_retention_factor": 1.0, "drainage_factor": 1.0},
+    "silty_loam": {"water_retention_factor": 1.05, "drainage_factor": 0.98},
     "silt": {"water_retention_factor": 1.08, "drainage_factor": 0.95},
+    "clay_loam": {"water_retention_factor": 1.12, "drainage_factor": 0.9},
     "clay": {"water_retention_factor": 1.2, "drainage_factor": 0.8},
+    "peat": {"water_retention_factor": 1.5, "drainage_factor": 0.6},
 }
 DEFAULT_SOIL_PROFILE = {"water_retention_factor": 1.0, "drainage_factor": 1.0}
 

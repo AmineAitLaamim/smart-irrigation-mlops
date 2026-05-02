@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI
+from fastapi.responses import PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Gauge, generate_latest
 import uvicorn
 
 try:
@@ -17,6 +19,36 @@ except ImportError:  # pragma: no cover - test import path fallback
 
 BATCH_INTERVAL_SECONDS = int(os.getenv("BATCH_INTERVAL_SECONDS", "300"))
 FEATURE_ENGINEERING_PORT = int(os.getenv("FEATURE_ENGINEERING_PORT", "8004"))
+
+TOTAL_PROCESSED = Gauge(
+    "feature_engineering_total_processed",
+    "Total readings processed by the feature engineering service",
+)
+FEATURES_COMPUTED = Gauge(
+    "feature_engineering_features_computed",
+    "Feature rows computed by the feature engineering service",
+)
+ROLLUPS_COMPUTED = Gauge(
+    "feature_engineering_rollups_computed",
+    "Rollups computed by the feature engineering service",
+)
+ANOMALIES_SMOOTHED = Gauge(
+    "feature_engineering_anomalies_smoothed",
+    "Anomalies smoothed by the feature engineering service",
+)
+FEATURE_ENGINEERING_ERRORS = Gauge(
+    "feature_engineering_errors_total",
+    "Errors observed by the feature engineering service",
+)
+
+
+def _update_metrics() -> None:
+    snapshot = stats.to_dict()
+    TOTAL_PROCESSED.set(snapshot["total_processed"])
+    FEATURES_COMPUTED.set(snapshot["features_computed"])
+    ROLLUPS_COMPUTED.set(snapshot["rollups_computed"])
+    ANOMALIES_SMOOTHED.set(snapshot["anomalies_smoothed"])
+    FEATURE_ENGINEERING_ERRORS.set(snapshot["errors"])
 
 
 async def _batch_scheduler():
@@ -66,6 +98,12 @@ async def health_check():
         "status": "healthy",
         "stats": stats.to_dict(),
     }
+
+
+@app.get("/metrics")
+async def metrics():
+    _update_metrics()
+    return PlainTextResponse(generate_latest().decode("utf-8"), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/trigger-batch")

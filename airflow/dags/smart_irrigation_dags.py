@@ -14,7 +14,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from mlops.dataset_pipeline import build_dataset_from_database
-from mlops.promotion import decide_promotion, load_production_rmse
+from mlops.promotion import decide_promotion, load_production_rmse, promote_model
 from mlops.training import (
     choose_best_run,
     log_training_to_mlflow,
@@ -108,6 +108,14 @@ def evaluate_and_register(**context):
     decision = decide_promotion(best_run.metrics.rmse, production_rmse)
     mlflow_result = log_training_to_mlflow(dataset, baseline_runs, best_run)
 
+    if decision.should_promote:
+        promote_model(
+            client,
+            MLFLOW_REGISTERED_MODEL_NAME,
+            mlflow_result["version"],
+            decision.target_stage,
+        )
+
     result = {
         "decision": asdict(decision),
         "best_run": asdict(best_run),
@@ -138,53 +146,69 @@ def scheduled_zone_predictions(**context):
             zones = await conn.fetch("SELECT DISTINCT zone_id, sensor_id FROM sensor_metadata WHERE active = TRUE")
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for row in zones:
-                    feature_rows = await conn.fetch(
-                        """
-                        SELECT feature_name, window_size, feature_value
-                        FROM feature_references
-                        WHERE zone_id = $1 AND sensor_id = $2
-                        ORDER BY computed_at DESC
-                        LIMIT 20
-                        """,
-                        row["zone_id"],
-                        row["sensor_id"],
-                    )
-                    features = [float(feature_row["feature_value"]) for feature_row in feature_rows if feature_row["feature_value"] is not None]
-                    if not features:
-                        continue
-                    response = await client.post(
-                        f"{MODEL_SERVER_REST_URL}/v1/predict",
-                        json={
-                            "zone_id": row["zone_id"],
-                            "sensor_id": row["sensor_id"],
-                            "features": features,
-                        },
-                    )
-                    response.raise_for_status()
-                    payload = response.json()
-                    await conn.execute(
-                        """
-                        INSERT INTO model_predictions (predicted_at, zone_id, model_version, prediction, confidence)
-                        VALUES ($1, $2, $3, $4, $5)
-                        """,
-                        datetime.utcnow(),
-                        row["zone_id"],
-                        payload["model_version"],
-                        payload["predicted_moisture"],
-                        payload["confidence_interval"][1] - payload["confidence_interval"][0],
-                    )
-                    await redis_client.publish(
-                        REDIS_CHANNEL_PREDICTIONS_NEW,
-                        json.dumps(
-                            {
+                    async with conn.transaction():
+                        # Get latest sensor reading
+                        latest_reading = await conn.fetchrow(
+                            "SELECT moisture FROM sensor_readings WHERE zone_id = $1 AND sensor_id = $2 ORDER BY timestamp DESC LIMIT 1",
+                            row["zone_id"],
+                            row["sensor_id"],
+                        )
+                        if not latest_reading:
+                            continue
+
+                        # Get latest feature references
+                        feature_rows = await conn.fetch(
+                            """
+                            SELECT feature_name, window_size, feature_value
+                            FROM feature_references
+                            WHERE zone_id = $1 AND sensor_id = $2
+                            ORDER BY computed_at DESC
+                            """,
+                            row["zone_id"],
+                            row["sensor_id"],
+                        )
+
+                        # Assemble feature vector: [current_moisture, current_temperature]
+                        # Matches current model version 3 expected features
+                        features = [
+                            float(latest_reading["moisture"]),
+                            0.0 # Default temperature for now
+                        ]
+
+                        response = await client.post(
+                            f"{MODEL_SERVER_REST_URL}/v1/predict",
+                            json={
                                 "zone_id": row["zone_id"],
                                 "sensor_id": row["sensor_id"],
-                                "prediction": payload["predicted_moisture"],
-                                "model_version": payload["model_version"],
-                                "predicted_at": datetime.utcnow().isoformat(),
-                            }
-                        ),
-                    )
+                                "features": features,
+                            },
+                        )
+
+                        response.raise_for_status()
+                        payload = response.json()
+                        await conn.execute(
+                            """
+                            INSERT INTO model_predictions (predicted_at, zone_id, model_version, prediction, confidence)
+                            VALUES ($1, $2, $3, $4, $5)
+                            """,
+                            datetime.utcnow(),
+                            row["zone_id"],
+                            payload["model_version"],
+                            payload["predicted_moisture"],
+                            payload["confidence_interval"][1] - payload["confidence_interval"][0],
+                        )
+                        await redis_client.publish(
+                            REDIS_CHANNEL_PREDICTIONS_NEW,
+                            json.dumps(
+                                {
+                                    "zone_id": row["zone_id"],
+                                    "sensor_id": row["sensor_id"],
+                                    "prediction": payload["predicted_moisture"],
+                                    "model_version": payload["model_version"],
+                                    "predicted_at": datetime.utcnow().isoformat(),
+                                }
+                            ),
+                        )
         finally:
             await conn.close()
             await redis_client.close()

@@ -18,22 +18,27 @@ async def insert_sensor_reading(
     sensor_id: str,
     timestamp: Any,
     sensor_type: str,
-    value: float,
+    moisture: float | None = None,
+    temperature: float | None = None,
+    value: float | None = None,  # Legacy support
 ) -> None:
     dt = _parse_timestamp(timestamp)
 
-    if sensor_type == "moisture":
+    if sensor_type == "combined":
+        # New format
+        pass
+    elif sensor_type == "moisture":
         moisture = value
         temperature = None
     elif sensor_type == "temperature":
-        # Schema requires moisture NOT NULL; use sentinel because this row
-        # represents a temperature-only reading. A migration could make
-        # moisture nullable or add a generic metric_type column.
         moisture = -1.0
         temperature = value
     else:
-        moisture = value
-        temperature = None
+        moisture = value if moisture is None else moisture
+
+    # Final check for moisture because of NOT NULL constraint
+    if moisture is None:
+        moisture = -1.0
 
     await db.execute(
         """

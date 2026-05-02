@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS description TEXT;
+
 -- ── 1. Roles per service (passwords via environment variables) ─
 DO $$
 BEGIN
@@ -62,6 +64,8 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS set_zones_updated_at ON zones;
 
 CREATE TRIGGER set_zones_updated_at
     BEFORE UPDATE ON zones

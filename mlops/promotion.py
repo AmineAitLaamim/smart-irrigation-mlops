@@ -49,9 +49,30 @@ def decide_promotion(
 
 
 def load_production_rmse(mlflow_client: Any, model_name: str) -> float | None:
-    versions = mlflow_client.get_latest_versions(model_name, stages=[MLFLOW_PRODUCTION_STAGE])
-    if not versions:
-        return None
-    run = mlflow_client.get_run(versions[0].run_id)
-    metric = run.data.metrics.get("best_rmse")
-    return float(metric) if metric is not None else None
+    from mlflow.exceptions import RestException
+    try:
+        versions = mlflow_client.get_latest_versions(model_name, stages=[MLFLOW_PRODUCTION_STAGE])
+        if not versions:
+            return None
+        run = mlflow_client.get_run(versions[0].run_id)
+        metric = run.data.metrics.get("best_rmse")
+        return float(metric) if metric is not None else None
+    except RestException as e:
+        if "RESOURCE_DOES_NOT_EXIST" in str(e):
+            return None
+        raise
+
+
+def promote_model(
+    mlflow_client: Any,
+    model_name: str,
+    version: str,
+    stage: str,
+    archive_existing: bool = True,
+) -> None:
+    mlflow_client.transition_model_version_stage(
+        name=model_name,
+        version=version,
+        stage=stage,
+        archive_existing_versions=archive_existing,
+    )

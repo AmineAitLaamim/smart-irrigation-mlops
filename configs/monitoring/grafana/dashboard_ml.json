@@ -1,64 +1,432 @@
 {
-  "title": "ML Pipeline Overview",
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
   "panels": [
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
       "id": 1,
-      "title": "Prediction Throughput",
-      "type": "timeseries",
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
-          "expr": "rate(model_server_predictions_total[5m])",
-          "legendFormat": "predictions/sec"
+          "editorMode": "code",
+          "expr": "model_server_predictions_total",
+          "legendFormat": "predictions",
+          "range": true,
+          "refId": "A"
         }
-      ]
+      ],
+      "title": "Predictions Served",
+      "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.2
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
       "id": 2,
-      "title": "Prediction Latency",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "rate(model_server_prediction_latency_seconds_sum[5m]) / rate(model_server_prediction_latency_seconds_count[5m])",
-          "legendFormat": "avg latency"
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "title": "Drift Signals",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "drift_monitor_page_hinkley_score",
-          "legendFormat": "page_hinkley"
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
+        "textMode": "auto"
+      },
+      "targets": [
         {
+          "editorMode": "code",
           "expr": "drift_monitor_kl_divergence",
-          "legendFormat": "kl_divergence"
-        },
-        {
-          "expr": "drift_monitor_mean_error",
-          "legendFormat": "mean_error"
+          "legendFormat": "KL divergence",
+          "range": true,
+          "refId": "A"
         }
-      ]
+      ],
+      "title": "Current KL Divergence",
+      "type": "stat"
     },
     {
-      "id": 4,
-      "title": "Irrigation Recommendations",
-      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
       "targets": [
         {
-          "expr": "increase(irrigation_controller_events_total[1h])",
-          "legendFormat": "events/hour"
+          "editorMode": "code",
+          "expr": "drift_monitor_page_hinkley_score",
+          "legendFormat": "Page-Hinkley",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Current Page-Hinkley Score",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 16,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(model_server_prediction_latency_seconds_bucket[5m])))",
+          "legendFormat": "p95 latency",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Model Server p95 Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 16,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "drift_monitor_kl_divergence",
+          "legendFormat": "KL divergence",
+          "range": true,
+          "refId": "A"
         },
         {
-          "expr": "irrigation_controller_last_recommended_volume",
-          "legendFormat": "last_volume"
+          "editorMode": "code",
+          "expr": "drift_monitor_mean_error",
+          "legendFormat": "mean error",
+          "range": true,
+          "refId": "B"
         }
-      ]
+      ],
+      "title": "Drift Signals",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 16,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "irrigation_controller_events_total",
+          "legendFormat": "irrigation events",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Irrigation Events",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 16,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "notification_service_deliveries_total",
+          "legendFormat": "{{channel}} / {{status}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Notification Deliveries",
+      "type": "timeseries"
     }
   ],
+  "refresh": "30s",
   "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "smart-irrigation",
+    "ml"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "ML Performance",
+  "uid": "smart-irrigation-ml",
   "version": 1,
-  "refresh": "15s"
+  "weekStart": ""
 }

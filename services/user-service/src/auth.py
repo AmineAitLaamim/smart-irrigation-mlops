@@ -1,9 +1,9 @@
 import os
+import bcrypt
 import jwt
 import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
-from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from asyncpg import Connection
@@ -22,20 +22,23 @@ REDIS_TOKEN_BLACKLIST_URL = os.getenv("REDIS_TOKEN_BLACKLIST_URL", "redis://redi
 AUTH_MAX_ATTEMPTS = int(os.getenv("AUTH_MAX_ATTEMPTS", "5"))
 AUTH_LOCKOUT_MINUTES = int(os.getenv("AUTH_LOCKOUT_MINUTES", "15"))
 
-# Password Hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=BCRYPT_ROUNDS)
-
 # Redis Clients
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 blacklist_client = redis.from_url(REDIS_TOKEN_BLACKLIST_URL, decode_responses=True)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)
+    hashed_bytes = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed_bytes.decode("utf-8")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8")
+    )
 
 def create_tokens(user_id: str, is_admin: bool = False) -> Tuple[str, str]:
     now = datetime.now(timezone.utc)

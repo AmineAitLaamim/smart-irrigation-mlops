@@ -176,6 +176,11 @@ async def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+@app.get("/v1/irrigation/recent")
+async def irrigation_recent(zone_id: str | None = Query(default=None), limit: int = 100):
+    return await controller.list_events(zone_id=zone_id, limit=limit)
+
+
 @app.get("/v1/irrigation/events")
 async def irrigation_events(zone_id: str | None = Query(default=None), limit: int = 100):
     return {"events": await controller.list_events(zone_id=zone_id, limit=limit)}

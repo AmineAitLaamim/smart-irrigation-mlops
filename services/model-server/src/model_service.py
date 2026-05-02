@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
@@ -55,21 +58,34 @@ class ModelRegistry:
         try:
             import mlflow
             from mlflow import MlflowClient
+            from mlflow.exceptions import MlflowException
         except ImportError:
             return self._info
 
         mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
         client = MlflowClient()
-        versions = client.get_latest_versions(
-            MLFLOW_REGISTERED_MODEL_NAME,
-            stages=[MLFLOW_PRODUCTION_STAGE],
-        )
+        try:
+            versions = client.get_latest_versions(
+                MLFLOW_REGISTERED_MODEL_NAME,
+                stages=[MLFLOW_PRODUCTION_STAGE],
+            )
+        except MlflowException as exc:
+            logger.warning(
+                "Falling back to local model because MLflow registry lookup failed for %s: %s",
+                MLFLOW_REGISTERED_MODEL_NAME,
+                exc,
+            )
+            return self._info
         if not versions:
             return self._info
 
         latest = versions[0]
         model_uri = f"models:/{MLFLOW_REGISTERED_MODEL_NAME}/{MLFLOW_PRODUCTION_STAGE}"
-        loaded_model = mlflow.pyfunc.load_model(model_uri)
+        try:
+            loaded_model = mlflow.pyfunc.load_model(model_uri)
+        except MlflowException as exc:
+            logger.warning("Falling back to local model because MLflow model load failed: %s", exc)
+            return self._info
 
         class PyfuncAdapter:
             def __init__(self, inner: Any) -> None:
