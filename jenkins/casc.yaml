@@ -140,6 +140,7 @@ jobs:
           githubPush()
         }
         properties {
+          githubProjectUrl('https://github.com/AmineAitLaamim/smart-irrigation')
           pipelineTriggers {
             triggers {
               githubPush()
