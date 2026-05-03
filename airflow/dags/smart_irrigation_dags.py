@@ -45,18 +45,39 @@ def _serialize_rows(rows):
 
 def prepare_dataset(**context):
     import asyncio
+    from mlops.dataset_pipeline import build_dataset_from_database, log_dataset_to_mlflow
 
     dataset = asyncio.run(build_dataset_from_database())
-    context["ti"].xcom_push(key="dataset", value=_serialize_rows(dataset.rows))
+    mlflow_info = log_dataset_to_mlflow(dataset)
+    
+    context["ti"].xcom_push(key="dataset_run_id", value=mlflow_info["run_id"])
+    context["ti"].xcom_push(key="dataset_artifact_path", value=mlflow_info["artifact_path"])
     context["ti"].xcom_push(key="dataset_metadata", value=dataset.metadata)
+    context["ti"].xcom_push(key="feature_columns", value=dataset.feature_columns)
+
+
+def _load_dataset_from_mlflow(run_id: str, artifact_path: str, metadata: dict, feature_columns: list):
+    import mlflow
+    import json
+    from mlops.dataset_pipeline import DatasetBuildResult
+    
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000"))
+    client = mlflow.tracking.MlflowClient()
+    local_path = client.download_artifacts(run_id, artifact_path)
+    
+    with open(local_path, "r") as f:
+        rows = json.load(f)
+    
+    return DatasetBuildResult(rows=rows, feature_columns=feature_columns, metadata=metadata)
 
 
 def train_candidate_models(**context):
-    from mlops.dataset_pipeline import DatasetBuildResult
-
-    rows = context["ti"].xcom_pull(key="dataset", task_ids="prepare_dataset")
+    run_id = context["ti"].xcom_pull(key="dataset_run_id", task_ids="prepare_dataset")
+    artifact_path = context["ti"].xcom_pull(key="dataset_artifact_path", task_ids="prepare_dataset")
     metadata = context["ti"].xcom_pull(key="dataset_metadata", task_ids="prepare_dataset")
-    dataset = DatasetBuildResult(rows=rows, feature_columns=[], metadata=metadata)
+    feature_columns = context["ti"].xcom_pull(key="feature_columns", task_ids="prepare_dataset")
+
+    dataset = _load_dataset_from_mlflow(run_id, artifact_path, metadata, feature_columns)
 
     baseline_runs = run_baseline_models(dataset)
     xgboost_run = run_xgboost_training(dataset)
@@ -79,15 +100,18 @@ def evaluate_and_register(**context):
     import mlflow
     from mlflow import MlflowClient
 
-    from mlops.dataset_pipeline import DatasetBuildResult
     from mlops.training import ModelMetrics, ModelRunResult
 
-    rows = context["ti"].xcom_pull(key="dataset", task_ids="prepare_dataset")
+    run_id = context["ti"].xcom_pull(key="dataset_run_id", task_ids="prepare_dataset")
+    artifact_path = context["ti"].xcom_pull(key="dataset_artifact_path", task_ids="prepare_dataset")
     metadata = context["ti"].xcom_pull(key="dataset_metadata", task_ids="prepare_dataset")
+    feature_columns = context["ti"].xcom_pull(key="feature_columns", task_ids="prepare_dataset")
+    
     baseline_runs_raw = context["ti"].xcom_pull(key="baseline_runs", task_ids="train_candidate_models")
     best_run_raw = context["ti"].xcom_pull(key="best_run", task_ids="train_candidate_models")
 
-    dataset = DatasetBuildResult(rows=rows, feature_columns=[], metadata=metadata)
+    dataset = _load_dataset_from_mlflow(run_id, artifact_path, metadata, feature_columns)
+    
     baseline_runs = [
         ModelRunResult(
             model_name=run["model_name"],

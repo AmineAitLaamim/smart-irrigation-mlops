@@ -247,9 +247,11 @@ generate-data:
 
 .PHONY: fast-forward
 fast-forward:
-	@echo "Simulating 12 hours passing (generating 1440 data points per sensor)..."
-	@docker exec sensor-simulator python src/batch_generate.py --count 1440 --interval 30
-	@echo "Time travel complete! Data is being ingested."
+	@echo "Syncing generator script to container..."
+	@docker cp services/sensor-simulator/src/batch_generate.py sensor-simulator:/app/src/batch_generate.py
+	@echo "Simulating 12 hours passing forward (generating 1440 data points per sensor)..."
+	@docker exec sensor-simulator python src/batch_generate.py --count 1440 --interval 30 --forward
+	@echo "Time travel complete! Future data is being ingested."
 
 
 .PHONY: redis-cli
