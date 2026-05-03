@@ -48,6 +48,8 @@ help:
 	@echo "    make logs-jenkins   Tail logs from the Jenkins container"
 	@echo "    make build          Build all custom service images"
 	@echo "    make build s=NAME   Build a specific service image"
+	@echo "    make rebuild        Rebuild without cache and recreate all containers"
+	@echo "    make rebuild s=NAME Rebuild without cache and recreate a specific service"
 	@echo "    make restart s=NAME Restart a specific service"
 	@echo ""
 	@echo "  Database"
@@ -60,6 +62,7 @@ help:
 	@echo "    make smoke          Run end-to-end smoke test"
 	@echo ""
 	@echo "  Utilities"
+	@echo "    make generate-data  Generate a batch of sensor readings (use count=100 interval=30)"
 	@echo "    make redis-cli      Open redis-cli shell"
 	@echo "    make mlflow         Open MLflow UI in browser"
 	@echo "    make grafana        Open Grafana UI in browser"
@@ -154,11 +157,23 @@ logs-jenkins:
 	docker logs -f jenkins
 
 .PHONY: build
-build:
+build: check-env
 ifdef s
 	$(COMPOSE_ALL) build $(s)
+	$(COMPOSE_ALL) up -d $(s)
 else
 	$(COMPOSE_ALL) build
+	$(COMPOSE_ALL) up -d
+endif
+
+.PHONY: rebuild
+rebuild: check-env
+ifdef s
+	$(COMPOSE_ALL) build --no-cache $(s)
+	$(COMPOSE_ALL) up -d --force-recreate $(s)
+else
+	$(COMPOSE_ALL) build --no-cache
+	$(COMPOSE_ALL) up -d --force-recreate
 endif
 
 .PHONY: restart
@@ -174,8 +189,7 @@ endif
 .PHONY: migrate
 migrate:
 	@export $$(grep -v '^\s*#' .env | grep -v '^\s*$$' | sed 's/\r$$//' | xargs); \
-	docker exec -i timescaledb psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} \
-		-f /docker-entrypoint-initdb.d/run_migrations.sql
+	docker exec -i timescaledb bash /docker-entrypoint-initdb.d/01_run_migrations.sh
 	@echo "Migrations applied."
 
 .PHONY: psql
@@ -199,12 +213,17 @@ test-all:
 			echo "Testing $$service..."; \
 			echo "----------------------------------------------------------------------"; \
 			PYTHONPATH=services/$$service:services/$$service/src ENV=testing uv run \
-				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with "pydantic[email]" \
+				--with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with prometheus-client --with "pydantic[email]" \
 				pytest services/$$service/tests/ || exit 1; \
 		else \
 			echo "No tests found for $$service, skipping."; \
 		fi; \
 	done
+
+.PHONY: test-all-psh
+test-all-psh:
+	@echo "Running all unit and integration tests using PowerShell..."
+	@powershell -NoProfile -Command "$$services = @('api-gateway','data-ingestion','drift-monitor','feature-engineering','irrigation-controller','model-server','notification-service','sensor-simulator','user-service'); $$failed = $$false; foreach ($$service in $$services) { $$testPath = Join-Path 'services' $$service; $$testDir = Join-Path $$testPath 'tests'; if (Test-Path $$testDir) { $$tests = Get-ChildItem -Path $$testDir -Recurse -Filter 'test_*.py'; if ($$tests.Count -gt 0) { Write-Host '----------------------------------------------------------------------'; Write-Host \"Testing $$service...\"; Write-Host '----------------------------------------------------------------------'; $$env:PYTHONPATH = \"services/$$service;services/$$service/src\"; uv run --with pytest --with pytest-asyncio --with fastapi --with httpx --with python-jose --with PyJWT --with passlib --with redis --with asyncpg --with prometheus-client --with 'pydantic[email]' pytest $$testDir; if ($$LASTEXITCODE -ne 0) { $$failed = $$true; break } } else { Write-Host \"No tests found for $$service, skipping.\" } } else { Write-Host \"No tests found for $$service, skipping.\" } }; if ($$failed) { exit 1 }"
 
 .PHONY: smoke
 smoke:
@@ -213,6 +232,22 @@ smoke:
 # -----------------------------------------------------------------------------
 # Utilities
 # -----------------------------------------------------------------------------
+.PHONY: generate-data
+generate-data:
+	@echo "Syncing generator script to container..."
+	@docker cp services/sensor-simulator/src/batch_generate.py sensor-simulator:/app/src/batch_generate.py
+	@echo "Generating batch of sensor readings..."
+	@docker exec sensor-simulator python src/batch_generate.py \
+		--count $(or $(count),$(or $(n),100)) \
+		--interval $(or $(interval),$(or $(i),30))
+
+.PHONY: fast-forward
+fast-forward:
+	@echo "Simulating 12 hours passing (generating 1440 data points per sensor)..."
+	@docker exec sensor-simulator python src/batch_generate.py --count 1440 --interval 30
+	@echo "Time travel complete! Data is being ingested."
+
+
 .PHONY: redis-cli
 redis-cli:
 	docker exec -it redis redis-cli

@@ -26,7 +26,7 @@ run_migration() {
 }
 
 # Check if schema_migrations table exists
-TABLE_EXISTS=$(psql -t -Ac "SELECT 1 FROM information_schema.tables WHERE table_name = 'schema_migrations'" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB")
+TABLE_EXISTS=$(psql -t -Ac "SELECT 1 FROM information_schema.tables WHERE table_name = 'schema_migrations'" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" | xargs)
 
 if [ "$TABLE_EXISTS" != "1" ]; then
     echo ">>> Initializing schema_migrations table..."

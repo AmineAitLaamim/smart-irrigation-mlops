@@ -36,9 +36,13 @@ The following metrics are computed across multiple windows (`30m`, `1h`, `3h`, `
 | **Extremes** | `min_moisture` / `max_moisture` | Daily peaks and troughs for crop stress analysis. |
 | **Trend** | `rate_of_change_moisture` | Delta between last and first reading in window; predicts drying speed. |
 | **Thermal Load** | `mean_temperature` | Average ambient/soil temperature for growth stage modeling. |
+| **Soil Retention** | `soil_water_retention_index` | Moisture adjusted by the zone soil profile to capture water-holding behavior. |
+| **Dryness Pressure** | `soil_dryness_index` | Dryness proxy adjusted by drainage profile to highlight irrigation urgency. |
+| **Evapotranspiration Proxy** | `evapotranspiration_proxy` | Temperature and dryness proxy used for irrigation-related feature enrichment. |
 
 ## Configuration
 - `REDIS_URL`: Connection string for Redis broker.
 - `DATABASE_URL`: Connection string for TimescaleDB.
 - `ROLLUP_WINDOWS`: Comma-separated list of windows (e.g., `30m,1h,24h`).
 - `OUTLIER_ZSCORE_THRESHOLD`: Sensitivity for outlier smoothing (default: `3.0`).
+- `FEATURE_MODEL_VERSION`: Version tag stored alongside computed features in `feature_references`.

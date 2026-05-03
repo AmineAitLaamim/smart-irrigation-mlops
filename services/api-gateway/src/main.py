@@ -1,11 +1,13 @@
 import os
+import time
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import asyncpg
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from auth import get_current_user, refresh_access_token
+from auth import get_current_user, get_current_user_payload, refresh_access_token
 from rate_limiter import rate_limit_middleware
 
 
@@ -22,6 +24,17 @@ WEB_DASHBOARD_URL = os.getenv("WEB_DASHBOARD_URL", "http://web-dashboard:3000")
 
 app = FastAPI(title="API Gateway", version="1.0.0")
 
+HTTP_REQUESTS = Counter(
+    "api_gateway_http_requests_total",
+    "Total HTTP requests handled by the API gateway",
+    ["method", "path", "status"],
+)
+REQUEST_LATENCY = Histogram(
+    "api_gateway_request_duration_seconds",
+    "Request latency observed by the API gateway",
+    ["method", "path"],
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ALLOWED_ORIGINS,
@@ -29,6 +42,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _path_label(path: str) -> str:
+    if path in {"", "/"}:
+        return "/"
+    for prefix in ROUTES:
+        if path.startswith(prefix):
+            return prefix
+    return "/unmatched"
 
 
 @app.post("/auth/refresh")
@@ -60,7 +82,21 @@ async def refresh_token_endpoint(request: Request):
 async def gateway_rate_limit(request: Request, call_next):
     if os.getenv("ENV") == "testing":
         return await call_next(request)
-    await rate_limit_middleware(request, call_next)
+    return await rate_limit_middleware(request, call_next)
+
+
+@app.middleware("http")
+async def prometheus_http_metrics(request: Request, call_next):
+    start = time.perf_counter()
+    path_label = _path_label(request.url.path)
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        REQUEST_LATENCY.labels(request.method, path_label).observe(time.perf_counter() - start)
+        HTTP_REQUESTS.labels(request.method, path_label, str(status_code)).inc()
 
 
 @app.get("/health")
@@ -68,29 +104,46 @@ async def health_check():
     return {"status": "healthy", "service": "api-gateway"}
 
 
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/")
 async def root():
     return {"message": "Smart Irrigation API Gateway", "version": "1.0.0"}
 
 
+DATA_QUALITY_URL = os.getenv("DATA_QUALITY_URL", "http://data-quality:8005")
+
 ROUTES = {
     "/auth": USER_SERVICE_URL,
     "/users": USER_SERVICE_URL,
-    "/v1/sensors": MODEL_SERVER_URL,
-    "/v1/predictions": MODEL_SERVER_URL,
+    "/v1/predict": MODEL_SERVER_URL,
+    "/v1/model": MODEL_SERVER_URL,
     "/v1/zones": USER_SERVICE_URL,
     "/v1/drift": DRIFT_MONITOR_URL,
     "/v1/irrigation": IRRIGATION_CONTROLLER_URL,
     "/v1/notifications": NOTIFICATION_SERVICE_URL,
+    "/quality": DATA_QUALITY_URL,
     "/dashboard": WEB_DASHBOARD_URL,
 }
+
+# Prefixes to strip when proxying to upstream (upstream doesn't mount under these)
+STRIP_PREFIXES = {"/auth"}
 
 
 def get_upstream_url(path: str) -> Optional[tuple[str, str]]:
     for route_prefix, upstream in ROUTES.items():
         if path.startswith(route_prefix):
-            return upstream, path
+            # Strip the prefix if the upstream doesn't use it
+            if route_prefix in STRIP_PREFIXES:
+                upstream_path = path[len(route_prefix):] or "/"
+            else:
+                upstream_path = path
+            return upstream, upstream_path
     return None
+
 
 
 async def proxy_request(
@@ -145,12 +198,19 @@ async def gateway_proxy(request: Request, path: str):
         return {"message": "Smart Irrigation API Gateway", "version": "1.0.0"}
 
     require_auth = False
-    if path.startswith(("auth/", "users/", "v1/zones/", "v1/irrigation/", "v1/notifications/")):
+    if path.startswith(("auth/", "users/", "v1/zones/", "v1/irrigation/", "v1/notifications/", "quality/")):
         require_auth = True
+        
+    # Public routes that should bypass auth
+    if path in ("auth/login", "auth/register", "auth/refresh"):
+        require_auth = False
+
+    if require_auth:
+        await get_current_user_payload(request)
     
     if path.startswith("v1/zones/") and request.method in ["PUT", "DELETE"]:
         zone_id = path.split("/")[-1] if len(path.split("/")) > 2 else None
-        if zone_id and zone_id.isdigit():
+        if zone_id:
             await validate_zone_ownership(request, zone_id)
 
     result = get_upstream_url(f"/{path}")
@@ -160,8 +220,8 @@ async def gateway_proxy(request: Request, path: str):
             detail="Route not found",
         )
 
-    upstream_url, _ = result
-    return await proxy_request(request, upstream_url, f"/{path}", require_auth)
+    upstream_url, upstream_path = result
+    return await proxy_request(request, upstream_url, upstream_path, require_auth)
 
 
 async def validate_zone_ownership(request: Request, zone_id: str):
@@ -194,13 +254,17 @@ async def validate_zone_ownership(request: Request, zone_id: str):
                 detail="Zone not found",
             )
 
-        if row["source"] == "yaml":
+        # Allow owners or admins to modify even if source is yaml
+        # System zones are those with source='yaml' and NO owner_id
+        is_owner = row["owner_id"] and str(row["owner_id"]) == user_id
+
+        if row["source"] == "yaml" and not row["owner_id"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="YAML-defined zones are read-only",
+                detail="System-defined zones are read-only",
             )
 
-        if not row["owner_id"] or str(row["owner_id"]) != user_id:
+        if not is_owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You do not have permission to modify this zone",

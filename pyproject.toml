@@ -5,6 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "asyncpg>=0.29.0",
+    "mlflow>=2.22.0",
+    "numpy>=2.3.0",
+    "optuna>=4.4.0",
+    "pandas>=2.3.0",
     "pre-commit>=4.5.1",
     "pypdfium2>=5.7.0",
+    "scikit-learn>=1.7.0",
+    "xgboost>=3.0.0",
 ]

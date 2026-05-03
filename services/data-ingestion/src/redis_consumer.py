@@ -64,7 +64,9 @@ class RedisConsumer:
                 sensor_id=data.get("sensor_id"),
                 timestamp=data.get("timestamp"),
                 sensor_type=result.sensor_type,
-                value=data.get("value"),
+                moisture=data.get("moisture"),
+                temperature=data.get("temperature"),
+                value=data.get("value"), # Legacy support
             )
             await stats.increment(valid=True)
         else:

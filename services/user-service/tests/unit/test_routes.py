@@ -164,3 +164,23 @@ async def test_delete_user_admin(client, mock_conn):
     
     assert response.status_code == 204
     mock_conn.execute.assert_called_with("DELETE FROM users WHERE user_id = $1", UUID(target_id))
+
+@pytest.mark.asyncio
+async def test_delete_zone(client, mock_conn):
+    zone_id = "test_zone"
+    mock_conn.execute.return_value = "DELETE 1"
+    
+    response = await client.delete(f"/v1/zones/{zone_id}")
+    
+    assert response.status_code == 204
+    mock_conn.execute.assert_called_with("DELETE FROM zones WHERE zone_id = $1", zone_id)
+
+@pytest.mark.asyncio
+async def test_delete_zone_not_found(client, mock_conn):
+    zone_id = "non_existent"
+    mock_conn.execute.return_value = "DELETE 0"
+    
+    response = await client.delete(f"/v1/zones/{zone_id}")
+    
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Zone not found"

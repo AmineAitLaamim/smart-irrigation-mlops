@@ -22,6 +22,8 @@ CREATE INDEX IF NOT EXISTS idx_quality_rules_active_type
 CREATE INDEX IF NOT EXISTS idx_quality_rules_zone_sensor
     ON quality_rules (zone_id, sensor_type) WHERE zone_id IS NOT NULL;
 
+DROP TRIGGER IF EXISTS set_quality_rules_updated_at ON quality_rules;
+
 CREATE TRIGGER set_quality_rules_updated_at
     BEFORE UPDATE ON quality_rules
     FOR EACH ROW

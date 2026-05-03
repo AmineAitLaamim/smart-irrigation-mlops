@@ -35,7 +35,6 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 class ZoneBase(BaseModel):
-    zone_id: str
     zone_name: str
     soil_type: str
     crop_type: str
@@ -44,7 +43,7 @@ class ZoneBase(BaseModel):
     active: bool = True
 
 class ZoneCreate(ZoneBase):
-    pass
+    zone_id: Optional[str] = None # Make it optional so we can auto-generate if not provided
 
 class ZoneUpdate(BaseModel):
     zone_name: Optional[str] = None
@@ -55,6 +54,7 @@ class ZoneUpdate(BaseModel):
     active: Optional[bool] = None
 
 class ZoneResponse(ZoneBase):
+    zone_id: str
     owner_id: Optional[UUID] = None
     source: str
     created_at: datetime

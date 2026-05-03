@@ -104,11 +104,12 @@ services:
       - "9090:9090"
     volumes:
       - ../configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../configs/monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
     networks:
       - irrigation_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/-/healthy"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -135,6 +136,7 @@ services:
       - grafana_data:/var/lib/grafana
       - ../configs/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ../configs/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ../configs/monitoring/grafana:/var/lib/grafana/dashboards:ro
     networks:
       - irrigation_net
     depends_on:
@@ -166,7 +168,7 @@ services:
     networks:
       - irrigation_net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9093/-/healthy"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9093/-/healthy"]
       interval: 15s
       timeout: 5s
       retries: 5

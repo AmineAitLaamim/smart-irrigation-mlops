@@ -1,0 +1,78 @@
+groups:
+  - name: service-availability
+    interval: 30s
+    rules:
+      - alert: SmartIrrigationServiceDown
+        expr: up{job=~"api-gateway|user-service|notification-service|data-ingestion|feature-engineering|data-quality|model-server|drift-monitor|irrigation-controller"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }} for more than 2 minutes."
+
+  - name: application-health
+    interval: 30s
+    rules:
+      - alert: ApiGatewayHigh5xxRate
+        expr: sum(rate(api_gateway_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(api_gateway_http_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API gateway 5xx ratio is elevated"
+          description: "More than 5% of API gateway requests returned 5xx responses for the last 10 minutes."
+
+      - alert: UserServiceHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(user_service_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "User service p95 latency is high"
+          description: "The user service p95 latency has been above 1 second for 10 minutes."
+
+      - alert: DataIngestionProcessingStalled
+        expr: increase(data_ingestion_total_processed[15m]) == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Data ingestion has stopped processing readings"
+          description: "No new sensor readings were processed in the last 15 minutes."
+
+      - alert: FeatureEngineeringErrorsIncreasing
+        expr: increase(feature_engineering_errors_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Feature engineering is reporting errors"
+          description: "The feature engineering service increased its error counter in the last 15 minutes."
+
+      - alert: ModelServerErrorRateHigh
+        expr: increase(model_server_errors_total[15m]) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model server errors are increasing"
+          description: "The model server reported more than 5 errors over the last 15 minutes."
+
+      - alert: DriftSignalExceeded
+        expr: drift_monitor_kl_divergence > 0.5 or drift_monitor_page_hinkley_score > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Drift monitor signaled potential model drift"
+          description: "KL divergence or Page-Hinkley score has exceeded the configured threshold."
+
+      - alert: UnhealthySensorsDetected
+        expr: max(data_quality_sensor_health_status) >= 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unhealthy sensors detected"
+          description: "At least one sensor is currently marked unhealthy by the data quality service."
