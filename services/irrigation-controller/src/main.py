@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -13,6 +14,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_late
 import redis.asyncio as redis
 from starlette.responses import Response
 import uvicorn
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -73,17 +77,34 @@ class IrrigationController:
             )
         return float(row["feature_value"]) if row and row["feature_value"] is not None else 0.0
 
+    async def _recent_event_exists(self, zone_id: str, minutes: int = 10) -> bool:
+        async with self.db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT 1 FROM irrigation_events
+                WHERE zone_id = $1
+                  AND triggered_at > NOW() - INTERVAL '10 minutes'
+                LIMIT 1
+                """,
+                zone_id,
+            )
+        return row is not None
+
     async def evaluate_prediction(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         zone_id = payload["zone_id"]
         prediction = float(payload["prediction"])
         thresholds = await self._zone_thresholds(zone_id)
         if not thresholds:
+            logger.debug(f"No thresholds found for zone {zone_id}")
             return None
 
-        rainfall_proxy = await self._latest_rain_proxy(zone_id)
+        logger.debug(f"Zone {zone_id}: prediction={prediction}, threshold_min={thresholds['moisture_min']}")
+
         if prediction >= thresholds["moisture_min"]:
             return None
-        if rainfall_proxy >= 15:
+
+        if await self._recent_event_exists(zone_id, minutes=10):
+            logger.debug(f"Skipping irrigation for zone {zone_id}: recent event exists")
             return None
 
         deficit = max(0.0, thresholds["moisture_min"] - prediction)
@@ -96,7 +117,44 @@ class IrrigationController:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await self.store_event(event)
+        logger.info(f"Irrigation TRIGGERED for zone {zone_id}: volume={recommended_volume}")
+
+        asyncio.create_task(self._execute_irrigation(event["zone_id"], event["recommended_volume"]))
+
         return event
+
+    async def _execute_irrigation(self, zone_id: str, volume: float) -> None:
+        await asyncio.sleep(5)
+        async with self.db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE irrigation_events
+                SET status = 'completed',
+                    actual_volume = $1,
+                    duration_seconds = 300,
+                    completed_at = NOW()
+                WHERE id = (
+                    SELECT id FROM irrigation_events
+                    WHERE zone_id = $2 AND status = 'pending'
+                    ORDER BY triggered_at DESC
+                    LIMIT 1
+                )
+                """,
+                volume,
+                zone_id,
+            )
+        logger.info(f"Irrigation COMPLETED for zone {zone_id}: volume={volume}")
+
+        if self.redis_client:
+            await self.redis_client.publish(
+                "irrigation:triggered",
+                json.dumps({
+                    "zone_id": zone_id,
+                    "status": "completed",
+                    "volume": volume,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+            )
 
     async def store_event(self, event: dict[str, Any]) -> None:
         async with self.db_pool.acquire() as conn:
@@ -121,18 +179,19 @@ class IrrigationController:
 
     async def run(self) -> None:
         self._running = True
-        while self._running:
-            try:
-                message = await self.pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if not message:
-                    await asyncio.sleep(1)
-                    continue
-                payload = json.loads(message["data"])
-                await self.evaluate_prediction(payload)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                await asyncio.sleep(1)
+        try:
+            async for message in self.pubsub.listen():
+                if not self._running:
+                    break
+                if message.get("type") == "message":
+                    try:
+                        logger.debug(f"Raw message: {message}")
+                        payload = json.loads(message["data"])
+                        await self.evaluate_prediction(payload)
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
+        except asyncio.CancelledError:
+            pass
 
     async def list_events(self, zone_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         query = """

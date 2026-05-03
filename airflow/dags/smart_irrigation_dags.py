@@ -221,17 +221,19 @@ def scheduled_zone_predictions(**context):
                             payload["predicted_moisture"],
                             payload["confidence_interval"][1] - payload["confidence_interval"][0],
                         )
+                        publish_payload = json.dumps(
+                            {
+                                "zone_id": row["zone_id"],
+                                "sensor_id": row["sensor_id"],
+                                "prediction": payload["predicted_moisture"],
+                                "model_version": payload["model_version"],
+                                "predicted_at": datetime.utcnow().isoformat(),
+                            }
+                        )
+                        print(f"Publishing to Redis: {publish_payload}")
                         await redis_client.publish(
                             REDIS_CHANNEL_PREDICTIONS_NEW,
-                            json.dumps(
-                                {
-                                    "zone_id": row["zone_id"],
-                                    "sensor_id": row["sensor_id"],
-                                    "prediction": payload["predicted_moisture"],
-                                    "model_version": payload["model_version"],
-                                    "predicted_at": datetime.utcnow().isoformat(),
-                                }
-                            ),
+                            publish_payload,
                         )
         finally:
             await conn.close()

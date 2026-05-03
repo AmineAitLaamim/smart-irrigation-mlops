@@ -22,6 +22,8 @@ Represents physical irrigation areas.
 - `owner_id`: UUID (FK -> users)
 - `source`: String ('api' or 'yaml')
 - `min_plausible` / `max_plausible`: JSONB (Bounds per sensor type)
+- `moisture_min`: FLOAT (Threshold for triggering irrigation)
+- `moisture_max`: FLOAT (Upper bound for alerts)
 
 ### `sensor_metadata`
 Tracks individual sensor deployment.
@@ -67,6 +69,17 @@ Inference results.
 - **Partition Interval**: 1 Day
 - `prediction`: FLOAT (Predicted moisture)
 - `confidence`: FLOAT
+
+### `irrigation_events`
+Irrigation trigger events.
+- **Partition Interval**: 1 Day
+- `triggered_at`: TIMESTAMPTZ (When irrigation was triggered)
+- `zone_id`: String (FK -> zones)
+- `trigger_reason`: String (e.g., 'predicted_moisture_below_threshold')
+- `recommended_volume`: FLOAT (Calculated liters needed)
+- `actual_volume`: FLOAT (Actual liters applied, nullable)
+- `duration_seconds`: INTEGER (Irrigation duration, nullable)
+- `status`: String ('pending', 'completed', 'cancelled')
 
 ## 3. Views & Analytics
 
