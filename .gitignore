@@ -1,18 +1,78 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# =============================================================================
+# Smart Irrigation System — .gitignore
+# =============================================================================
 
-# Virtual environments
-.venv
+# Environment — never commit real secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+env/
+*.egg
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.pnp
+.pnp.js
+npm-debug.log*
+
+# Docker
+.docker/
+.dockerignore
+
+# ML artifacts — tracked via MLflow, not git
+*.pkl
+*.joblib
+*.json.gz
+*.json.bak
+models/
+mlruns/
+artifacts/
+
+# Airflow
+airflow/logs/
+airflow/plugins/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.dump
+*.sql.gz
 
 # Qwen Code
 .qwen/
-Qwen.md
+QWEN.md
+TASKS_DEVOPS.md
 
 # PDFs
-*.pdf
 project_pdfs/
+*.pdf
+
+.gemini/
+docs/PDF_SPECIFICATIONS.txt

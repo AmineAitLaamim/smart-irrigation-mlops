@@ -1,0 +1,175 @@
+
+# =============================================================================
+# Smart Irrigation System — Monitoring + CI/CD Stack
+# Owner: DevOps (DO-01, DO-02, DO-03)
+# Services: jenkins, prometheus, grafana, alertmanager
+# Requires base stack to be running first:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.monitoring.yml up -d
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+volumes:
+  jenkins_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Jenkins — CI/CD automation (Configuration as Code)
+  # Custom image: jenkins/Dockerfile.jenkins (plugins + JCasC pre-baked)
+  # Docker Cloud agents: python-agent (lint, test, scan), docker-agent (build, push)
+  # Jenkinsfile: Jenkinsfile (repo root)
+  # Shared library: jenkins/shared-lib/vars/smartIrrigation.groovy
+  # ---------------------------------------------------------------------------
+  jenkins:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.jenkins
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
+    image: smart-irrigation-jenkins:latest
+    container_name: jenkins
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc.yaml
+      JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+      GITHUB_USER: ${GITHUB_USER}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    ports:
+      - "${JENKINS_PORT:-8081}:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../jenkins/casc.yaml:/var/jenkins_home/casc.yaml:ro
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Jenkins Python Agent — built once, used by Docker Cloud on demand
+  # Contains: Python 3.11, ruff, mypy, pytest, OWASP Dependency-Check
+  # ---------------------------------------------------------------------------
+  jenkins-python-agent:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.python-agent
+    image: smart-irrigation-python-agent:latest
+    profiles:
+      - build-agents
+    entrypoint: ["echo", "Agent image built successfully"]
+
+  # ---------------------------------------------------------------------------
+  # Jenkins Docker Agent — built once, used by Docker Cloud on demand
+  # Contains: Docker CLI, Docker Compose plugin
+  # ---------------------------------------------------------------------------
+  jenkins-docker-agent:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.docker-agent
+      args:
+        - DOCKER_GID=${DOCKER_GID:-999}
+    image: smart-irrigation-docker-agent:latest
+    profiles:
+      - build-agents
+    entrypoint: ["echo", "Agent image built successfully"]
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — metrics collection
+  # Scrapes /metrics from every service every 15 seconds
+  # Config: configs/monitoring/prometheus.yml
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../configs/monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Grafana — visualization dashboards
+  # Pre-configured dashboards for system health and ML performance
+  # Dashboard JSON: configs/monitoring/grafana/
+  # UI available at http://localhost:3001
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../configs/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ../configs/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ../configs/monitoring/grafana:/var/lib/grafana/dashboards:ro
+    networks:
+      - irrigation_net
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager — alert routing and notification management
+  # Routes Prometheus alerts to email/webhook based on severity
+  # Config: configs/monitoring/alertmanager.yml
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../configs/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - irrigation_net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

@@ -1,0 +1,38 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: notification-service
+  group_by:
+    - alertname
+    - job
+    - severity
+  group_wait: 15s
+  group_interval: 1m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: notification-service
+      group_wait: 10s
+      repeat_interval: 30m
+    - matchers:
+        - severity="warning"
+      receiver: notification-service
+      group_wait: 30s
+      repeat_interval: 2h
+
+receivers:
+  - name: notification-service
+    webhook_configs:
+      - url: http://notification-service:8505/alerts/webhook
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal:
+      - alertname
+      - job
