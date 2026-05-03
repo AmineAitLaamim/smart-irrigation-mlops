@@ -37,11 +37,23 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
-    command: >
-      bash -c "
-      airflow db migrate &&
-      exec airflow standalone
-      "
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-airflow_dev}
+    command:
+      - bash
+      - -c
+      - |
+        airflow db migrate
+        airflow users delete --username "${AIRFLOW_ADMIN_USER}" 2>/dev/null || true
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD}" \
+          --firstname Admin --lastname User \
+          --role Admin \
+          --email admin@smart-irrigation.local
+        echo "Airflow admin ready: ${AIRFLOW_ADMIN_USER}"
+        airflow scheduler &
+        exec airflow webserver
     ports:
       - "8082:8080"
     volumes:
