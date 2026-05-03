@@ -1,5 +1,7 @@
 # Project Architecture: Smart Irrigation System
 
+> **Note:** For detailed irrigation system documentation including complete flow diagrams, code snippets, event lifecycle, and edge cases, see [IRRIGATION_SYSTEM.md](./IRRIGATION_SYSTEM.md).
+
 ## High-Level Overview
 The Smart Irrigation System is an AI-driven, event-based microservices platform designed to optimize water usage in agricultural settings. It processes real-time sensor data, applies machine learning for moisture prediction, and automates irrigation control while ensuring data integrity and security.
 

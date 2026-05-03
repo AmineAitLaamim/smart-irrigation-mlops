@@ -272,3 +272,19 @@ grafana:
 tunnel:
 	@echo "Starting ngrok for Jenkins on port $(or $(JENKINS_PORT),8081)..."
 	ngrok http $(or $(JENKINS_PORT),8081)
+
+.PHONY: tunnel-dashboard
+tunnel-dashboard:
+	@echo "Starting ngrok for Web Dashboard on port 80..."
+	ngrok http 80
+
+.PHONY: tunnel-api
+tunnel-api:
+	@echo "Starting ngrok for API Gateway on port 8080..."
+	ngrok http 8080
+
+.PHONY: tunnel-stop
+tunnel-stop:
+	@echo "Stopping all ngrok tunnels..."
+	ngrok disconnect || true
+	@echo "Ngrok tunnels stopped"
