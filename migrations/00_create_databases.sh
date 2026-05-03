@@ -1,7 +1,7 @@
 #!/bin/bash
 # ================================================================
 # 00_create_databases.sh
-# Enable TimescaleDB at container startup
+# Ensure TimescaleDB is enabled and required databases exist at startup
 # Executed automatically by docker-entrypoint-initdb.d
 # ================================================================
 
@@ -10,11 +10,10 @@ set -e
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_DB="${POSTGRES_DB:-irrigation_db}"
 
-echo ">>> Enabling TimescaleDB on $POSTGRES_DB"
+echo ">>> Ensuring TimescaleDB and required databases exist"
 
-psql -v ON_ERROR_STOP=1 \
-     --username "$POSTGRES_USER" \
-     --dbname   "$POSTGRES_DB" <<-EOSQL
+# Enable TimescaleDB on the main application database and record role passwords
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
 
     CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
@@ -29,4 +28,17 @@ psql -v ON_ERROR_STOP=1 \
 
 EOSQL
 
-echo ">>> TimescaleDB ready on $POSTGRES_DB"
+# Create the Airflow metadata database if it doesn't exist
+if psql -v ON_ERROR_STOP=0 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='airflow_db'" | grep -q 1; then
+  echo ">>> airflow_db already exists"
+else
+  echo ">>> Creating airflow_db"
+  psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE DATABASE airflow_db OWNER \"${POSTGRES_USER}\""
+fi
+
+# Ensure TimescaleDB extension is available in the airflow_db as well (safe to run repeatedly)
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "airflow_db" <<-EOSQL
+    CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
+EOSQL
+
+echo ">>> Databases ready"
