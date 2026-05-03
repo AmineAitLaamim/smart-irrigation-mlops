@@ -7,7 +7,7 @@ Model retraining is fully automated and orchestrated by **Apache Airflow**.
 
 - **Primary Schedule**: The `smart_irrigation_model_training` DAG runs daily at **02:00 AM UTC**.
 - **Manual Overrides**: Training can be triggered manually via the Airflow UI or CLI for rapid iteration or emergency retraining after identifying data drift.
-- **Retraining Trigger**: In production, the system can also trigger retraining automatically if the `drift-monitor` service detects significant concept drift or a drop in prediction accuracy.
+- **Automatic Retraining Trigger**: The system is fully autonomous. When the `drift-monitor` service detects significant concept drift or a drop in prediction accuracy, it automatically triggers the Airflow retraining DAG via the REST API. A 1-hour cooldown prevents redundant training cycles.
 
 ## 2. Training Workflow (The "How")
 The training process follows a "Champion-Challenger" pattern to ensure only superior models reach production.

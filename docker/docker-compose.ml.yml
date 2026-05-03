@@ -36,6 +36,7 @@ services:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
     command: >
       bash -c "
       airflow db migrate &&
@@ -113,6 +114,9 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      AIRFLOW_URL: "http://airflow:8080"
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
     networks:
       - irrigation_net
     depends_on:
