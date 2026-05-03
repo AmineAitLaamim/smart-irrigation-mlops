@@ -18,11 +18,10 @@ psql -v ON_ERROR_STOP=1 \
 
     CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
-    -- Pass role passwords as session-level settings for migrations
-    ALTER SYSTEM SET app.ingestion_password = '${INGESTION_PASSWORD:-ingestion_dev}';
-    ALTER SYSTEM SET app.reader_password = '${READER_PASSWORD:-reader_dev}';
-    ALTER SYSTEM SET app.app_password = '${APP_PASSWORD:-app_dev}';
-    SELECT pg_reload_conf();
+    -- Pass role passwords as database-level settings for migrations
+    ALTER DATABASE "$POSTGRES_DB" SET app.ingestion_password = '${INGESTION_PASSWORD:-ingestion_dev}';
+    ALTER DATABASE "$POSTGRES_DB" SET app.reader_password = '${READER_PASSWORD:-reader_dev}';
+    ALTER DATABASE "$POSTGRES_DB" SET app.app_password = '${APP_PASSWORD:-app_dev}';
 
     SELECT default_version, installed_version
     FROM   pg_available_extensions

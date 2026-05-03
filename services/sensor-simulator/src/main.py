@@ -20,6 +20,7 @@ TICK_INTERVAL = float(os.environ.get("SENSOR_PUBLISH_INTERVAL", 10.0))
 
 # Redis channel
 CHANNEL = os.environ.get("REDIS_CHANNEL_SENSOR_DATA", "sensor:data")
+IRRIGATION_CHANNEL = os.environ.get("REDIS_CHANNEL_IRRIGATION_TRIGGERED", "irrigation:triggered")
 
 def get_zones_from_api():
     """Fetch active zones from the user service."""
@@ -46,10 +47,29 @@ def main():
         # We will keep trying in the main loop anyway
         r = redis.from_url(REDIS_URL_ENV, decode_responses=True)
 
+    pubsub = r.pubsub()
+    pubsub.subscribe(IRRIGATION_CHANNEL)
+    logger.info(f"Subscribed to irrigation channel: {IRRIGATION_CHANNEL}")
+
     generators = {}
     last_zone_sync = 0
 
     while True:
+        # Check for irrigation events
+        try:
+            message = pubsub.get_message(ignore_subscribe_messages=True)
+            while message:
+                if message['type'] == 'message':
+                    data = json.loads(message['data'])
+                    triggered_zone = data.get("zone_id")
+                    if triggered_zone and triggered_zone in generators:
+                        logger.info(f"Irrigation triggered for zone {triggered_zone}. Increasing moisture!")
+                        for gen in generators[triggered_zone]:
+                            gen.trigger_irrigation()
+                message = pubsub.get_message(ignore_subscribe_messages=True)
+        except Exception as e:
+            logger.error(f"Error checking pubsub messages: {e}")
+
         current_time = time.time()
         
         # Sync zones every 60 seconds
