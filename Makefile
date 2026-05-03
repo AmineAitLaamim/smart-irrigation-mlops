@@ -40,6 +40,7 @@ help:
 	@echo "  Teardown"
 	@echo "    make down           Stop all containers (keep volumes)"
 	@echo "    make down-v         Stop all containers and delete volumes"
+	@echo "    make clear-volumes  Stop containers and clear their volumes (same as down-v)"
 	@echo ""
 	@echo "  Development"
 	@echo "    make ps             Show running containers and health status"
@@ -136,6 +137,9 @@ down:
 down-v:
 	@echo "WARNING: This will delete all volumes including the database. Continue? [y/N]"
 	@read ans && [ $${ans:-N} = y ] && $(COMPOSE_ALL) down -v || echo "Aborted."
+
+.PHONY: clear-volumes
+clear-volumes: down-v
 
 # -----------------------------------------------------------------------------
 # Development
