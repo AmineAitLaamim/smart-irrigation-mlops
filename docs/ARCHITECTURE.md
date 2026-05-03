@@ -21,6 +21,7 @@ The Smart Irrigation System is an AI-driven, event-based microservices platform 
 - **Feature Store**: Versioned repository in TimescaleDB for ML features.
 - **Model Server**: Serves ML models for real-time inference (Rest API).
 - **Drift Monitor**: Monitors model performance and data distribution changes.
+- **MLflow & MinIO**: Orchestrates the model lifecycle. MinIO acts as the **Object Store** for versioned training datasets and model artifacts, ensuring full reproducibility and decoupling from the live database.
 
 ### 3. Management & Control
 - **User Service**: Manages identities, authentication (JWT), and roles.

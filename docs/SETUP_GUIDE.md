@@ -65,3 +65,21 @@ uv run pytest services/user-service/tests/unit/test_routes.py
 - **Data Quality (Reports)**: `http://localhost:8005/quality/reports/summary`
 - **MLflow UI**: `http://localhost:5000`
 - **MinIO Console**: `http://localhost:9001`
+
+## 8. Utility Commands
+
+### Fast-Forward Simulation
+The `fast-forward` command is used to quickly populate the system with data for testing and development. It simulates 12 hours of system activity in seconds.
+
+```bash
+make fast-forward
+```
+
+**What it does:**
+- **Future Data**: Generates sensor readings for the next 12 hours.
+- **Realistic Activity**: Simulates irrigation cycles (moisture recovery) so the data looks like a real farm.
+- **Immediate Ingestion**: The data is pushed through the real ingestion pipeline, triggering all quality checks and feature engineering.
+- **Multi-Sensor**: Generates consistent data for all active zones and sensors simultaneously.
+
+## 9. Troubleshooting
+...

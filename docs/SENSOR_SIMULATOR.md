@@ -39,6 +39,16 @@ The service publishes JSON strings to the Redis channel with the following forma
 }
 ```
 
+## Batch Data Generation (`make fast-forward`)
+
+The simulator includes a utility for high-speed data generation, primarily used for load testing and populating dashboards.
+
+### How it works:
+- **Instant Population**: It generates and ingests 12 hours of data in a few seconds, making it ideal for setting up a fresh environment with visible trends.
+- **Smart Irrigation Simulation**: To keep the data realistic, it monitors moisture levels during generation. If they get too low, it simulates an irrigation event, causing the moisture to rise again. This prevents the data from just flatlining at zero.
+- **Future Projection**: By default, it generates data for the *next* 12 hours. This is used to test how the system handles future-dated readings and to see how well the models predict upcoming soil states.
+- **Consistent Timeline**: It ensures all sensors generate data at the same time intervals, providing a synchronized view of the entire farm.
+
 ## Running the Simulator
 The simulator is packaged as part of the data stack and is managed via Docker Compose:
 ```bash
