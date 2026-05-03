@@ -27,7 +27,6 @@ class SensorGenerator:
         self.soil_type = soil_type.lower()
         
         # Initial conditions
-        self.current_moisture = random.uniform(40.0, 80.0)
         self.current_temperature = random.uniform(15.0, 25.0)
         
         # Soil-specific parameters
@@ -35,34 +34,48 @@ class SensorGenerator:
         if self.soil_type == SoilType.SAND:
             self.depletion_base = 0.6
             self.retention_variance = 0.25
+            self.current_moisture = random.uniform(35.0, 45.0)
         elif self.soil_type == SoilType.SANDY_LOAM:
             self.depletion_base = 0.45
             self.retention_variance = 0.18
+            self.current_moisture = random.uniform(40.0, 50.0)
         elif self.soil_type == SoilType.LOAM:
             self.depletion_base = 0.25
             self.retention_variance = 0.1
+            self.current_moisture = random.uniform(45.0, 55.0)
         elif self.soil_type == SoilType.SILTY_LOAM:
             self.depletion_base = 0.2
             self.retention_variance = 0.08
+            self.current_moisture = random.uniform(48.0, 58.0)
         elif self.soil_type == SoilType.SILT:
             self.depletion_base = 0.18
             self.retention_variance = 0.07
+            self.current_moisture = random.uniform(50.0, 60.0)
         elif self.soil_type == SoilType.CLAY_LOAM:
             self.depletion_base = 0.15
             self.retention_variance = 0.06
+            self.current_moisture = random.uniform(52.0, 62.0)
         elif self.soil_type == SoilType.CLAY:
             self.depletion_base = 0.1
             self.retention_variance = 0.05
+            self.current_moisture = random.uniform(55.0, 65.0)
         elif self.soil_type == SoilType.PEAT:
             self.depletion_base = 0.05
             self.retention_variance = 0.03
+            self.current_moisture = random.uniform(60.0, 70.0)
         else: # Default/Fallback
             self.depletion_base = 0.25
             self.retention_variance = 0.1
+            self.current_moisture = random.uniform(45.0, 55.0)
+
+        self.irrigating_ticks = 0
+
+    def trigger_irrigation(self):
+        self.irrigating_ticks = 10  # Moisture will rise for the next 10 ticks
 
     def generate_reading(self) -> SensorReading:
-        # Simulate temperature (simple random walk constrained between 10C and 40C)
-        temp_delta = random.uniform(-1.0, 1.0)
+        # Simulate temperature (warming trend for demo)
+        temp_delta = random.uniform(-0.2, 1.5)
         self.current_temperature = max(10.0, min(40.0, self.current_temperature + temp_delta))
         
         # Simulate moisture depletion
@@ -70,13 +83,21 @@ class SensorGenerator:
         temp_factor = max(0.5, self.current_temperature / 20.0)
         
         # Calculate depletion for this tick
-        depletion = (self.depletion_base + random.uniform(-self.retention_variance, self.retention_variance)) * temp_factor
+        # DEMO MODE: Aggressive depletion multiplier so irrigation triggers quickly
+        demo_multiplier = 10.0
+        depletion = (self.depletion_base + random.uniform(-self.retention_variance, self.retention_variance)) * temp_factor * demo_multiplier
         
-        # Sometimes it rains or irrigates (simulated random jump)
-        if random.random() < 0.05: # 5% chance of sudden moisture increase
-            self.current_moisture += random.uniform(10.0, 30.0)
+        if self.irrigating_ticks > 0:
+            # Actively irrigating! Moisture increases rapidly, temp drops slightly
+            self.current_moisture += random.uniform(5.0, 10.0)
+            self.current_temperature -= random.uniform(0.5, 1.5)
+            self.irrigating_ticks -= 1
         else:
-            self.current_moisture -= depletion
+            # Occasional light rain or natural variation (very rare)
+            if random.random() < 0.001: # 0.1% chance of sudden moisture increase
+                self.current_moisture += random.uniform(2.0, 5.0)
+            else:
+                self.current_moisture -= depletion
             
         # Bound moisture between 0% and 100%
         self.current_moisture = max(0.0, min(100.0, self.current_moisture))

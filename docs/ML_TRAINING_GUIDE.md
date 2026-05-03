@@ -14,8 +14,11 @@ The training process follows a "Champion-Challenger" pattern to ensure only supe
 
 ### Step 1: Dataset Construction
 The system fetches raw sensor data and corresponding windowed features from the **TimescaleDB Feature Store**. 
-- It creates a **1-hour future target** (predicting moisture 60 minutes ahead).
-- It performs **Deduplication**, **Outlier Smoothing**, and **Forward-Filling** for temperature missing values.
+
+- **Optimized Preparation**: The data gathering logic is optimized to handle millions of records efficiently, significantly reducing the time required to build large training sets.
+- **Dataset Versioning**: Once constructed, the training dataset is saved as a versioned artifact (JSON) in **MinIO Object Storage**. 
+- **Traceability**: Every training run is linked to a specific dataset version in MLflow. This ensures that you can always pinpoint exactly what data was used to train a specific model, enabling perfect reproducibility.
+- **Preprocessing**: It performs **Deduplication**, **Outlier Smoothing**, and **Forward-Filling** for temperature missing values.
 
 ### Step 2: Candidate Generation
 The pipeline trains and evaluates three distinct types of models:

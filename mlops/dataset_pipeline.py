@@ -4,6 +4,7 @@ import math
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from statistics import mean
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
@@ -99,21 +100,26 @@ def clean_sensor_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def build_feature_snapshot(
-    feature_rows: Iterable[dict[str, Any]],
+    feature_rows: Sequence[dict[str, Any]],
     *,
     computed_at: datetime,
-    zone_id: str,
-    sensor_id: str,
     model_version: str,
-) -> dict[str, float]:
+    start_index: int = 0,
+) -> tuple[dict[str, float], int]:
     snapshot: dict[str, tuple[datetime, float]] = {}
-    for row in feature_rows:
-        if row["zone_id"] != zone_id or row.get("sensor_id") != sensor_id:
-            continue
-        if row.get("model_version", settings.feature_model_version) != model_version:
-            continue
+    last_index = start_index
+    
+    # feature_rows MUST be sorted by computed_at
+    for i in range(start_index, len(feature_rows)):
+        row = feature_rows[i]
         row_time = _as_utc(row["computed_at"])
+        
         if row_time > computed_at:
+            break
+            
+        last_index = i
+        
+        if row.get("model_version", settings.feature_model_version) != model_version:
             continue
 
         feature_key = f'{row["feature_name"]}_{row["window_size"]}'
@@ -124,7 +130,7 @@ def build_feature_snapshot(
         if current is None or row_time > current[0]:
             snapshot[feature_key] = (row_time, float(feature_value))
 
-    return {key: value for key, (_, value) in snapshot.items()}
+    return {key: value for key, (_, value) in snapshot.items()}, last_index
 
 
 @dataclass(frozen=True)
@@ -148,12 +154,26 @@ def prepare_training_dataset(
     for row in cleaned:
         by_sensor[(row["zone_id"], row["sensor_id"])].append(row)
 
+    # Pre-group features by sensor to avoid O(N*M)
+    features_by_sensor: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for f_row in feature_rows:
+        features_by_sensor[(f_row["zone_id"], f_row["sensor_id"])].append(f_row)
+
     dataset_rows: list[dict[str, Any]] = []
     feature_names: set[str] = set()
 
     for (zone_id, sensor_id), rows in by_sensor.items():
         rows.sort(key=lambda item: item["timestamp"])
+        
+        # Features for this specific sensor, sorted by time
+        s_features = sorted(
+            features_by_sensor.get((zone_id, sensor_id), []),
+            key=lambda item: _as_utc(item["computed_at"])
+        )
+        
         future_index = 0
+        feature_pointer = 0
+        
         for row in rows:
             cutoff = row["timestamp"] + timedelta(minutes=horizon_minutes)
             while future_index < len(rows) and rows[future_index]["timestamp"] < cutoff:
@@ -162,12 +182,13 @@ def prepare_training_dataset(
                 break
 
             target_row = rows[future_index]
-            feature_snapshot = build_feature_snapshot(
-                feature_rows,
+            
+            # Efficiently get latest features using a walking pointer
+            feature_snapshot, feature_pointer = build_feature_snapshot(
+                s_features,
                 computed_at=row["timestamp"],
-                zone_id=zone_id,
-                sensor_id=sensor_id,
                 model_version=effective_model_version,
+                start_index=feature_pointer,
             )
             feature_names.update(feature_snapshot.keys())
 
@@ -349,6 +370,8 @@ def log_dataset_to_mlflow(dataset: DatasetBuildResult) -> dict[str, Any]:
     try:
         import mlflow
         import pandas as pd
+        import tempfile
+        import json
     except ImportError as exc:
         raise RuntimeError(
             "MLflow dataset logging requires mlflow and pandas to be installed."
@@ -363,13 +386,32 @@ def log_dataset_to_mlflow(dataset: DatasetBuildResult) -> dict[str, Any]:
         name=settings.mlflow_dataset_name,
     )
 
-    with mlflow.start_run(run_name="dataset-build"):
+    with mlflow.start_run(run_name="dataset-build") as run:
         mlflow.log_input(mlflow_dataset, context="training")
         mlflow.log_params(dataset.metadata)
         mlflow.log_metric("dataset_rows", len(dataset.rows))
         mlflow.log_metric("dataset_features", len(dataset.feature_columns))
+        
+        # Save dataset to a temporary file and log as artifact
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "dataset.json"
+            # We use a custom serializer for rows to handle datetimes if any
+            # But dataset.rows already has datetimes if not serialized.
+            # prepare_training_dataset returns rows with datetimes.
+            
+            serialized_rows = []
+            for row in dataset.rows:
+                serialized_rows.append({
+                    k: v.isoformat() if hasattr(v, "isoformat") else v
+                    for k, v in row.items()
+                })
+            
+            tmp_path.write_text(json.dumps(serialized_rows), encoding="utf-8")
+            mlflow.log_artifact(str(tmp_path))
+            
         return {
-            "run_id": mlflow.active_run().info.run_id,
+            "run_id": run.info.run_id,
+            "artifact_path": "dataset.json",
             "rows": len(dataset.rows),
             "features": len(dataset.feature_columns),
         }

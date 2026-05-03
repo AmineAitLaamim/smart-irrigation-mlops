@@ -10,9 +10,21 @@ We use a **Versioned Feature Store** implemented in TimescaleDB (`feature_refere
 - **Consistency**: The same engineering logic is used for both training (batch) and inference (streaming), preventing training-serving skew.
 
 ## 2. Model Lifecycle
-- **Experiment Tracking**: Managed via **MLflow**. Every training run logs hyperparameters, metrics (RMSE, MAE), and the resulting model artifact.
-- **Model Registry**: Models are promoted to `production` or `staging` within MLflow.
-- **Model Server**: A dedicated REST API that loads the `production` model and performs inference on demand.
+
+### Dataset Versioning & Storage
+To ensure that models can always be traced back to the data they were trained on, we store every training dataset in **MinIO** (Object Storage).
+- **Versioning**: Each training run gets its own unique dataset version stored in the `mlflow-artifacts` bucket.
+- **Traceability**: The system automatically tracks which dataset version was used for each model. This allows you to "time travel" and retrain or audit models with the exact same data later.
+- **Efficiency**: Downstream tasks pull data directly from MinIO, which is more stable and scalable for large datasets than passing data through temporary memory or databases.
+
+### Scalable Pipeline
+The training pipeline is designed to handle large volumes of sensor data without slowing down:
+- **Fast Data Preparation**: The logic for building training datasets is optimized to process millions of records efficiently.
+- **Traceable Experiments**: We use **MLflow** to track every training attempt, including the exact features used and the resulting performance metrics.
+- **Automated Retraining**: Airflow manages the end-to-end flow from data gathering to model registration.
+
+### Experiment Tracking
+...
 
 ## 3. Data Quality & Malfunction Detection
 Before data is used for inference or training, it passes through the **Data Quality Framework**:

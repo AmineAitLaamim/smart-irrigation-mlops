@@ -247,9 +247,11 @@ generate-data:
 
 .PHONY: fast-forward
 fast-forward:
-	@echo "Simulating 12 hours passing (generating 1440 data points per sensor)..."
-	@docker exec sensor-simulator python src/batch_generate.py --count 1440 --interval 30
-	@echo "Time travel complete! Data is being ingested."
+	@echo "Syncing generator script to container..."
+	@docker cp services/sensor-simulator/src/batch_generate.py sensor-simulator:/app/src/batch_generate.py
+	@echo "Simulating 12 hours passing forward (generating 1440 data points per sensor)..."
+	@docker exec sensor-simulator python src/batch_generate.py --count 1440 --interval 30 --forward
+	@echo "Time travel complete! Future data is being ingested."
 
 
 .PHONY: redis-cli
@@ -270,3 +272,19 @@ grafana:
 tunnel:
 	@echo "Starting ngrok for Jenkins on port $(or $(JENKINS_PORT),8081)..."
 	ngrok http $(or $(JENKINS_PORT),8081)
+
+.PHONY: tunnel-dashboard
+tunnel-dashboard:
+	@echo "Starting ngrok for Web Dashboard on port 80..."
+	ngrok http 80
+
+.PHONY: tunnel-api
+tunnel-api:
+	@echo "Starting ngrok for API Gateway on port 8080..."
+	ngrok http 8080
+
+.PHONY: tunnel-stop
+tunnel-stop:
+	@echo "Stopping all ngrok tunnels..."
+	ngrok disconnect || true
+	@echo "Ngrok tunnels stopped"

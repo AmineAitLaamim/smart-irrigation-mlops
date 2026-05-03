@@ -159,7 +159,7 @@ smart-irrigation/
 │    │    ├── 📄 requirements.txt
 │    │    └── 📁 src/
 │    │         ├── 📄 __init__.py
-│    │         └── 📄 main.py               Threshold-based irrigation trigger logic, valve control
+│    │         └── 📄 main.py               Redis pub/sub consumer, threshold-based trigger, 10-min deduplication
 │    │
 │
 ├── 📁 migrations/                     [SHARED] Database schema versioning

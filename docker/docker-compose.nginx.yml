@@ -1,0 +1,47 @@
+# =============================================================================
+# Smart Irrigation System — Nginx Reverse Proxy
+# Usage:
+#   docker compose -f docker/docker-compose.yml \
+#                  -f docker/docker-compose.app.yml \
+#                  -f docker/docker-compose.data.yml \
+#                  -f docker/docker-compose.ml.yml \
+#                  -f docker/docker-compose.monitoring.yml \
+#                  -f docker/docker-compose.nginx.yml up -d
+# =============================================================================
+
+networks:
+  irrigation_net:
+    external: true
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Nginx — Reverse proxy for all services
+  # Single entry point on port 80
+  # Routes: / → dashboard, /api → gateway, /grafana, /prometheus, etc.
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./configs/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - irrigation_net
+    depends_on:
+      - web-dashboard
+      - api-gateway
+      - grafana
+      - prometheus
+      - alertmanager
+      - mlflow
+      - minio
+      - airflow
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
