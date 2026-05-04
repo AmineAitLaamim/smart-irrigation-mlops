@@ -44,7 +44,7 @@ def test_prepare_training_dataset_uses_only_past_features():
             "model_version": "v1",
         },
         {
-            "computed_at": _ts(2),
+            "computed_at": _ts(1),
             "zone_id": "z1",
             "sensor_id": "s1",
             "window_size": "1h",
