@@ -3,7 +3,7 @@ import bcrypt
 import jwt
 import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Tuple
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from asyncpg import Connection
@@ -98,7 +98,9 @@ async def verify_token(token: str, expected_type: str = "access") -> dict:
         
         if expected_type == "refresh":
             jti = payload.get("jti")
-            if await is_token_blacklisted(jti):
+            if jti is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing JTI")
+            if await is_token_blacklisted(str(jti)):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
                 
         return payload
