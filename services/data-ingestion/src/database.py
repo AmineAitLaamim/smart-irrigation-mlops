@@ -62,14 +62,20 @@ class Database:
             self.pool = None
 
     async def fetchrow(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
     async def fetch(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.fetch(query, *args)
 
     async def execute(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.execute(query, *args)
 
@@ -78,5 +84,7 @@ db = Database()
 
 
 async def get_db_conn() -> AsyncGenerator[asyncpg.Connection, None]:
+    if not db.pool:
+        raise RuntimeError("Database pool not initialized. Call connect() first.")
     async with db.pool.acquire() as connection:
         yield connection

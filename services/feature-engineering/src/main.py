@@ -12,10 +12,10 @@ try:
     from .database import db, stats
     from .etl import run_batch
     from .redis_consumer import consumer
-except ImportError:  # pragma: no cover - test import path fallback
-    from database import db, stats
-    from etl import run_batch
-    from redis_consumer import consumer
+except (ImportError, ValueError):
+    from database import db, stats  # type: ignore
+    from etl import run_batch  # type: ignore
+    from redis_consumer import consumer  # type: ignore
 
 BATCH_INTERVAL_SECONDS = int(os.getenv("BATCH_INTERVAL_SECONDS", "300"))
 FEATURE_ENGINEERING_PORT = int(os.getenv("FEATURE_ENGINEERING_PORT", "8004"))

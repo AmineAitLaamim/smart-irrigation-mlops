@@ -51,6 +51,11 @@ class AlertHandler:
         import smtplib
         from email.mime.text import MIMEText
 
+        assert SMTP_HOST is not None
+        assert SMTP_FROM is not None
+        assert SMTP_PASSWORD is not None
+        assert ALERT_EMAIL_TO is not None
+
         msg = MIMEText(body)
         msg["Subject"] = subject
         msg["From"] = SMTP_FROM

@@ -170,6 +170,9 @@ async def refresh(refresh_in: RefreshRequest, conn: Connection = Depends(get_db_
     user_id = payload.get("sub")
     jti = payload.get("jti")
     exp = payload.get("exp")
+
+    if user_id is None or jti is None or exp is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
     
     # Get user to check is_admin status
     user = await conn.fetchrow("SELECT is_admin FROM users WHERE user_id = $1", UUID(user_id))
@@ -179,11 +182,11 @@ async def refresh(refresh_in: RefreshRequest, conn: Connection = Depends(get_db_
     # Blacklist the old refresh token (rotation)
     from datetime import datetime, timezone
     now_ts = int(datetime.now(timezone.utc).timestamp())
-    expire_seconds = exp - now_ts
+    expire_seconds = int(exp) - now_ts
     if expire_seconds > 0:
-        await blacklist_token(jti, expire_seconds)
+        await blacklist_token(str(jti), expire_seconds)
     
-    access_token, new_refresh_token = create_tokens(user_id, is_admin=user["is_admin"])
+    access_token, new_refresh_token = create_tokens(str(user_id), is_admin=user["is_admin"])
     return {
         "access_token": access_token,
         "refresh_token": new_refresh_token,
