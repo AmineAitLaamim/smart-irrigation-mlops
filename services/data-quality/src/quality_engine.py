@@ -1,9 +1,6 @@
-import json
-import math
 import os
-from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from .database import db, stats
 from .metrics import (

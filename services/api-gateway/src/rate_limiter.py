@@ -1,7 +1,7 @@
 import os
 import time
 from fastapi import HTTPException, Request, status
-import redis
+import redis.asyncio as redis
 
 
 RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "100"))
@@ -20,11 +20,11 @@ class RateLimiter:
         window_start = current_time - self.window
 
         pipe = self.redis_client.pipeline()
-        pipe.zremrangebyscore(key, "-inf", str(window_start))
-        pipe.zcard(key)
-        pipe.zadd(key, {str(current_time): current_time})
-        pipe.expire(key, self.window)
-        results = pipe.execute()
+        await pipe.zremrangebyscore(key, "-inf", str(window_start))
+        await pipe.zcard(key)
+        await pipe.zadd(key, {str(current_time): current_time})
+        await pipe.expire(key, self.window)
+        results = await pipe.execute()
 
         request_count = results[1]
         return request_count < self.limit
@@ -34,8 +34,8 @@ class RateLimiter:
         current_time = int(time.time())
         window_start = current_time - self.window
 
-        self.redis_client.zremrangebyscore(key, "-inf", str(window_start))
-        count = self.redis_client.zcard(key)
+        await self.redis_client.zremrangebyscore(key, "-inf", str(window_start))
+        count = await self.redis_client.zcard(key)
         return max(0, self.limit - count)
 
 

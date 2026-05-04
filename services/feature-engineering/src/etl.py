@@ -3,11 +3,9 @@ import os
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-
 try:
     from .database import db, stats
     from .feature_computation import (
-        FEATURE_MODEL_VERSION,
         ROLLUP_WINDOWS,
         compute_window_features,
         normalize_sensor_rows,
@@ -17,7 +15,6 @@ try:
 except (ImportError, ValueError):
     from database import db, stats  # type: ignore
     from feature_computation import (  # type: ignore
-        FEATURE_MODEL_VERSION,
         ROLLUP_WINDOWS,
         compute_window_features,
         normalize_sensor_rows,

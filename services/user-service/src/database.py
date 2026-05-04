@@ -1,7 +1,6 @@
 import os
 import asyncpg
 from typing import AsyncGenerator
-from fastapi import Request
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
 DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "2"))

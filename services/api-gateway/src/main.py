@@ -7,7 +7,7 @@ import httpx
 import asyncpg
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 
-from auth import get_current_user, get_current_user_payload, refresh_access_token
+from auth import get_current_user_payload, refresh_access_token
 from rate_limiter import rate_limit_middleware
 
 

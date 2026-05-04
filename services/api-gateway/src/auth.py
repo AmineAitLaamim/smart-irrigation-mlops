@@ -59,7 +59,14 @@ async def get_current_user(request: Request) -> CurrentUser:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return CurrentUser(user_id=payload.get("sub"), email=payload.get("sub"))
+    sub = payload.get("sub")
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject",
+        )
+
+    return CurrentUser(user_id=str(sub), email=str(sub))
 
 
 async def optional_auth(request: Request) -> Optional[CurrentUser]:
@@ -106,7 +113,14 @@ async def refresh_access_token(refresh_token: str) -> tuple[str, str]:
             detail="Invalid token type for refresh",
         )
 
+    sub = payload.get("sub")
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject",
+        )
+
     # Rotation: Issue a new access token AND a new refresh token
-    new_access = create_access_token(payload.get("sub"))
-    new_refresh = create_refresh_token(payload.get("sub"))
+    new_access = create_access_token(str(sub))
+    new_refresh = create_refresh_token(str(sub))
     return new_access, new_refresh

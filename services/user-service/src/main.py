@@ -1,4 +1,3 @@
-import os
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status, Response
