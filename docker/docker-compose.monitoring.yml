@@ -27,6 +27,7 @@ services:
   # Shared library: jenkins/shared-lib/vars/smartIrrigation.groovy
   # ---------------------------------------------------------------------------
   jenkins:
+    user: root
     build:
       context: ../jenkins
       dockerfile: Dockerfile.jenkins
