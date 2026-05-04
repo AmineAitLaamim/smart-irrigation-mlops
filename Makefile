@@ -270,21 +270,27 @@ grafana:
 
 .PHONY: tunnel
 tunnel:
+	@echo "Stopping any existing ngrok..."
+	-@taskkill /F /IM ngrok.exe 2>nul || true
 	@echo "Starting ngrok for Jenkins on port $(or $(JENKINS_PORT),8081)..."
 	ngrok http $(or $(JENKINS_PORT),8081)
 
 .PHONY: tunnel-dashboard
 tunnel-dashboard:
+	@echo "Stopping any existing ngrok..."
+	-@taskkill /F /IM ngrok.exe 2>nul || true
 	@echo "Starting ngrok for Web Dashboard on port 80..."
 	ngrok http 80
 
 .PHONY: tunnel-api
 tunnel-api:
+	@echo "Stopping any existing ngrok..."
+	-@taskkill /F /IM ngrok.exe 2>nul || true
 	@echo "Starting ngrok for API Gateway on port 8080..."
 	ngrok http 8080
 
 .PHONY: tunnel-stop
 tunnel-stop:
 	@echo "Stopping all ngrok tunnels..."
-	ngrok disconnect || true
+	-@taskkill /F /IM ngrok.exe 2>nul || true
 	@echo "Ngrok tunnels stopped"
