@@ -20,19 +20,19 @@ class EtlStats:
     errors: int = 0
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def increment(self, processed: bool = False, features: bool = False,
-                        rollups: bool = False, smoothed: bool = False, error: bool = False):
+    async def increment(self, processed: int | bool = False, features: int | bool = False,
+                        rollups: int | bool = False, smoothed: int | bool = False, error: int | bool = False):
         async with self._lock:
             if processed:
-                self.total_processed += 1
+                self.total_processed += int(processed)
             if features:
-                self.features_computed += 1
+                self.features_computed += int(features)
             if rollups:
-                self.rollups_computed += 1
+                self.rollups_computed += int(rollups)
             if smoothed:
-                self.anomalies_smoothed += 1
+                self.anomalies_smoothed += int(smoothed)
             if error:
-                self.errors += 1
+                self.errors += int(error)
             self.last_run_at = datetime.utcnow()
 
     def to_dict(self):
@@ -64,18 +64,26 @@ class Database:
             self.pool = None
 
     async def fetch(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.fetch(query, *args)
 
     async def fetchrow(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
     async def execute(self, query: str, *args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.execute(query, *args)
 
     async def executemany(self, query: str, args):
+        if not self.pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.pool.acquire() as conn:
             return await conn.executemany(query, args)
 

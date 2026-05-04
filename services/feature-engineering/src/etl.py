@@ -14,9 +14,9 @@ try:
         parse_window_to_interval,
         serialize_feature_payload,
     )
-except ImportError:  # pragma: no cover - test import path fallback
-    from database import db, stats
-    from feature_computation import (
+except (ImportError, ValueError):
+    from database import db, stats  # type: ignore
+    from feature_computation import (  # type: ignore
         FEATURE_MODEL_VERSION,
         ROLLUP_WINDOWS,
         compute_window_features,
