@@ -18,7 +18,7 @@ import uvicorn
 
 try:
     from .drift_detector import DriftSummary, summarize_drift
-except ImportError:  # pragma: no cover - test import path fallback
+except ImportError:  # type: ignore[no-redef]
     from drift_detector import DriftSummary, summarize_drift
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")

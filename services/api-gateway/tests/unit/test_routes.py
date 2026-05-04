@@ -24,18 +24,19 @@ def test_auth_route_resolved():
     assert result is not None
     upstream, path = result
     assert "user-service" in upstream or "localhost" in upstream or upstream.startswith("http")
-    assert path == "/auth/login"
+    assert path == "/login"
 
 
 def test_users_route_resolved():
     result = get_upstream_url("/users/me")
     assert result is not None
-    upstream, _ = result
+    upstream, path = result
     assert upstream  # non-empty URL
+    assert path == "/users/me"
 
 
 def test_predictions_route_resolved():
-    result = get_upstream_url("/v1/predictions")
+    result = get_upstream_url("/v1/predict")
     assert result is not None
 
 
@@ -74,6 +75,6 @@ def test_partial_match_not_confused():
 
 
 def test_routes_dict_has_expected_keys():
-    expected = {"/auth", "/users", "/v1/sensors", "/v1/predictions",
-                "/v1/zones", "/v1/drift", "/v1/irrigation", "/v1/notifications", "/dashboard"}
+    expected = {"/auth", "/users", "/v1/predict", "/v1/model",
+                "/v1/zones", "/v1/drift", "/v1/irrigation", "/v1/notifications", "/dashboard", "/quality"}
     assert expected == set(ROUTES.keys())

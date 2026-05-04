@@ -14,7 +14,7 @@ import uvicorn
 
 try:
     from .model_service import MODEL_RELOAD_INTERVAL_SECONDS, ModelRegistry, grpc_handler
-except ImportError:  # pragma: no cover - test import path fallback
+except ImportError:  # type: ignore[no-redef]
     from model_service import MODEL_RELOAD_INTERVAL_SECONDS, ModelRegistry, grpc_handler
 
 MODEL_SERVER_REST_PORT = int(os.getenv("MODEL_SERVER_REST_PORT", "8501"))
