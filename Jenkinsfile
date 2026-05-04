@@ -48,12 +48,14 @@ pipeline {
                     echo "── Creating fast source archive ──"
                     # We use tar to bypass the slow Jenkins stash file-walker.
                     # This reduces stash/unstash overhead from minutes to seconds.
+                    # We ignore exit code 1 (file changed as we read it) which is common in dynamic environments.
                     tar --exclude="./services/web-dashboard/node_modules" \
                         --exclude="./.venv" \
                         --exclude="./.uv-test-venv" \
                         --exclude="./.git" \
                         --exclude="./project_pdfs" \
-                        -czf source.tar.gz .
+                        --exclude="source.tar.gz" \
+                        -czf source.tar.gz . || [ $? -eq 1 ]
                 '''
                 stash name: 'source-archive', includes: 'source.tar.gz'
             }
