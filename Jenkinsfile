@@ -14,7 +14,7 @@ pipeline {
 
     environment {
         REGISTRY    = 'ghcr.io'
-        IMAGE_BASE  = "ghcr.io/${env.GITHUB_USER}/smart-irrigation"
+        IMAGE_BASE  = "ghcr.io/AmineAitLaamim/smart-irrigation"
         // Inlined service list to avoid library dependency
         SERVICES    = 'api-gateway,data-ingestion,drift-monitor,feature-engineering,irrigation-controller,model-server,notification-service,sensor-simulator,user-service,web-dashboard'
     }
@@ -147,6 +147,7 @@ pipeline {
                         sh 'tar -xzf source.tar.gz && rm source.tar.gz'
                         sh '''
                             echo "── OWASP Dependency-Check ──"
+                            mkdir -p dependency-check-report
                             SCAN_PATHS=""
                             for svc in $(echo $SERVICES | tr ',' ' '); do
                                 REQ="services/${svc}/requirements.txt"
@@ -244,7 +245,12 @@ pipeline {
                     sh '''
                         echo "── Building all service images ──"
                         GIT_SHA=$(echo $GIT_COMMIT | head -c 7)
-                        TAG="${BRANCH_NAME}-${GIT_SHA}"
+                        
+                        # Fallback if BRANCH_NAME is null (standard pipeline jobs)
+                        # We also strip 'origin/' if present
+                        SAFE_BRANCH="${BRANCH_NAME:-${GIT_BRANCH:-main}}"
+                        SAFE_BRANCH=$(echo "${SAFE_BRANCH}" | sed 's/origin\\///g' | sed 's/[^a-zA-Z0-9.-]/_/g')
+                        TAG="${SAFE_BRANCH}-${GIT_SHA}"
 
                         for svc in $(echo $SERVICES | tr ',' ' '); do
                             IMAGE="${IMAGE_BASE}/${svc}"
