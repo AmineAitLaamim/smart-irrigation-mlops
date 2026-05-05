@@ -60,18 +60,22 @@ class Database:
             self.pool = None
 
     async def fetch(self, query: str, *args) -> List[asyncpg.Record]:
+        assert self.pool is not None, "Database pool not initialized"
         async with self.pool.acquire() as conn:
             return await conn.fetch(query, *args)
 
     async def fetchrow(self, query: str, *args) -> Optional[asyncpg.Record]:
+        assert self.pool is not None, "Database pool not initialized"
         async with self.pool.acquire() as conn:
             return await conn.fetchrow(query, *args)
 
     async def execute(self, query: str, *args):
+        assert self.pool is not None, "Database pool not initialized"
         async with self.pool.acquire() as conn:
             return await conn.execute(query, *args)
 
     async def executemany(self, query: str, args):
+        assert self.pool is not None, "Database pool not initialized"
         async with self.pool.acquire() as conn:
             return await conn.executemany(query, args)
 

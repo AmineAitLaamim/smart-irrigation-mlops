@@ -143,8 +143,8 @@ async def _check_stuck_value(
     if not readings:
         return None
 
-    values = [_get_value(r, sensor_type) for r in readings]
-    values = [v for v in values if v is not None]
+    raw_values = [_get_value(r, sensor_type) for r in readings]
+    values: List[float] = [v for v in raw_values if v is not None]
     if len(values) < consecutive:
         return None
 
@@ -234,14 +234,14 @@ async def _check_flatline(
     max_variance = params.get("max_variance", 0.0001)
 
     readings = await _get_recent_readings(zone_id, sensor_id, minutes=window_minutes)
-    values = [_get_value(r, sensor_type) for r in readings]
-    values = [v for v in values if v is not None]
+    raw_values = [_get_value(r, sensor_type) for r in readings]
+    values: List[float] = [v for v in raw_values if v is not None]
 
     if len(values) < 3:
         return None
 
-    mean_v = sum(values) / len(values)
-    variance = sum((x - mean_v) ** 2 for x in values) / (len(values) - 1) if len(values) > 1 else 0
+    mean_v: float = sum(values) / len(values)
+    variance: float = sum((x - mean_v) ** 2 for x in values) / (len(values) - 1) if len(values) > 1 else 0.0
 
     if variance <= max_variance:
         flatline_detected_total.labels(zone_id=zone_id, sensor_id=sensor_id).inc()

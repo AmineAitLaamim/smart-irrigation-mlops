@@ -6,14 +6,11 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from httpx import AsyncClient, ASGITransport
 from uuid import uuid4, UUID
 
-# Setup sys.path to find src
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
-
 # Mock redis and database before importing app
 with patch("redis.asyncio.from_url", return_value=MagicMock()):
     with patch("src.database.db.connect", new_callable=AsyncMock):
-        from main import app
-        from auth import create_tokens
+        from src.main import app
+        from src.auth import create_tokens
 
 from src.database import get_db_conn
 

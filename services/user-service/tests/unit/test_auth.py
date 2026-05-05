@@ -1,5 +1,10 @@
 import pytest
-from src.auth import hash_password, verify_password, create_tokens, verify_token
+from unittest.mock import MagicMock, patch
+
+# Mock redis before importing auth
+with patch("redis.asyncio.from_url", return_value=MagicMock()):
+    from src.auth import hash_password, verify_password, create_tokens, verify_token
+
 import jwt
 import os
 
