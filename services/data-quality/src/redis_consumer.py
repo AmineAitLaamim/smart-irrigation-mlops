@@ -115,6 +115,9 @@ class RedisConsumer:
         self._running = True
         self._health_task = asyncio.create_task(self._health_loop())
         try:
+            if not self._pubsub:
+                print("Redis pubsub not connected")
+                return
             async for message in self._pubsub.listen():
                 if not self._running:
                     break
