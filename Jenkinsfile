@@ -249,8 +249,13 @@ pipeline {
                         # Fallback if BRANCH_NAME is null (standard pipeline jobs)
                         # We also strip 'origin/' if present
                         SAFE_BRANCH="${BRANCH_NAME:-${GIT_BRANCH:-main}}"
-                        SAFE_BRANCH=$(echo "${SAFE_BRANCH}" | sed 's/origin\\///g' | sed 's/[^a-zA-Z0-9.-]/_/g')
-                        TAG="${SAFE_BRANCH}-${GIT_SHA}"
+                        SAFE_BRANCH=$(echo "${SAFE_BRANCH}" | sed 's|origin/||g' | sed 's/[^a-zA-Z0-9.-]/_/g')
+                        
+                        if [ -z "${SAFE_BRANCH}" ]; then
+                            TAG="${GIT_SHA}"
+                        else
+                            TAG="${SAFE_BRANCH}-${GIT_SHA}"
+                        fi
 
                         for svc in $(echo $SERVICES | tr ',' ' '); do
                             IMAGE="${IMAGE_BASE}/${svc}"
