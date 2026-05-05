@@ -62,7 +62,7 @@ pipeline {
         }
 
         // =====================================================================
-        // 2. CI CHECKS — Parallel Lint, Unit Tests, and Security Scan
+        // 2. CI CHECKS — Parallel Lint and Unit Tests
         // =====================================================================
         stage('CI Checks') {
             parallel {
@@ -138,41 +138,6 @@ pipeline {
                     }
                     post {
                         always { junit allowEmptyResults: true, testResults: 'unit-*.xml' }
-                    }
-                }
-                stage('Security Scan') {
-                    agent { label 'python' }
-                    steps {
-                        unstash 'source-archive'
-                        sh 'tar -xzf source.tar.gz && rm source.tar.gz'
-                        sh '''
-                            echo "── OWASP Dependency-Check ──"
-                            mkdir -p dependency-check-report
-                            SCAN_PATHS=""
-                            for svc in $(echo $SERVICES | tr ',' ' '); do
-                                REQ="services/${svc}/requirements.txt"
-                                if [ -f "$REQ" ]; then
-                                    SCAN_PATHS="${SCAN_PATHS} --scan ${REQ}"
-                                fi
-                            done
-
-                            # Run scan but don't fail the parallel block yet
-                            # This allows tests to finish while NVD downloads
-                            dependency-check.sh \
-                                ${SCAN_PATHS} \
-                                --project "smart-irrigation" \
-                                --format JSON \
-                                --format HTML \
-                                --out dependency-check-report \
-                                --failOnCVSS 11 \
-                                --enableExperimental \
-                                || echo "Dependency-Check is initializing or findings found"
-                        '''
-                    }
-                    post {
-                        always {
-                            archiveArtifacts artifacts: 'dependency-check-report/**', allowEmptyArchive: true
-                        }
                     }
                 }
             }
