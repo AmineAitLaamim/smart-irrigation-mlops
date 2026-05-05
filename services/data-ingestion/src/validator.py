@@ -52,6 +52,18 @@ async def validate_reading(sensor_data: Dict[str, Any]) -> ValidationResult:
     if temperature is None and sensor_data.get("type") == "temperature":
         temperature = sensor_data.get("value")
 
+    if zone_id is None:
+        anomalies = [{
+            "zone_id": None,
+            "sensor_id": sensor_id,
+            "timestamp": timestamp,
+            "event_type": "missing_zone_id",
+            "event_value": moisture or temperature,
+            "severity": "critical",
+            "details": "Reading missing zone_id"
+        }]
+        return ValidationResult(is_valid=False, anomalies=anomalies, sensor_type="combined")
+
     bounds = await get_zone_bounds(zone_id)
     anomalies = []
 

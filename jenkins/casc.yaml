@@ -53,10 +53,13 @@ jenkins:
             pullStrategy: PULL_NEVER
             dockerTemplateBase:
               image: "smart-irrigation-python-agent:latest"
+              mounts:
+                - type=volume,source=jenkins-python-cache,destination=/root/.cache
+                - type=volume,source=jenkins-dc-data,destination=/opt/dependency-check/data
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
-                user: "jenkins"
+                user: "root"
             instanceCapStr: "4"
             removeVolumes: true
 
@@ -70,10 +73,11 @@ jenkins:
               privileged: true
               mounts:
                 - type=bind,source=/var/run/docker.sock,destination=/var/run/docker.sock
+                - type=volume,source=jenkins-docker-cache,destination=/var/lib/docker
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
-                user: "jenkins"
+                user: "root"
             instanceCapStr: "2"
             removeVolumes: true
 
@@ -98,21 +102,6 @@ credentials:
 unclassified:
   location:
     url: "${JENKINS_URL:-http://localhost:8081/}"
-
-  globalLibraries:
-    libraries:
-      - name: "smartIrrigation"
-        defaultVersion: "main"
-        allowVersionOverride: true
-        retriever:
-          legacySCM:
-            scm:
-              git:
-                userRemoteConfigs:
-                  - url: "https://github.com/AmineAitLaamim/smart-irrigation.git"
-                    credentialsId: "github-creds"
-                branches:
-                  - name: "**"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed Job — auto-creates the pipeline job on first boot

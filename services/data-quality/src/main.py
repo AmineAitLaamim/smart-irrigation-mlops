@@ -1,7 +1,6 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query
@@ -11,7 +10,6 @@ import uvicorn
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
 from .database import db, stats
-from .metrics import active_rules_gauge
 from .quality_engine import _load_active_rules, update_sensor_health_gauge
 from .redis_consumer import consumer
 from .reports import (

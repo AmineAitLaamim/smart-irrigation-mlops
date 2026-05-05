@@ -18,8 +18,8 @@ import uvicorn
 
 try:
     from .drift_detector import DriftSummary, summarize_drift
-except ImportError:  # type: ignore[no-redef]
-    from drift_detector import DriftSummary, summarize_drift
+except (ImportError, ValueError):
+    from drift_detector import DriftSummary, summarize_drift  # type: ignore
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://irrigation_user:changeme@timescaledb:5432/irrigation_db")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -60,6 +60,8 @@ class DriftMonitor:
 
     async def _fetch_prediction_window(self) -> tuple[list[float], list[float]]:
         since = datetime.now(timezone.utc) - timedelta(hours=24)
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(
                 """

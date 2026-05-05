@@ -51,6 +51,8 @@ class IrrigationController:
             await self.db_pool.close()
 
     async def _zone_thresholds(self, zone_id: str) -> dict[str, Any] | None:
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -63,6 +65,8 @@ class IrrigationController:
         return dict(row) if row else None
 
     async def _latest_rain_proxy(self, zone_id: str) -> float:
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -78,6 +82,8 @@ class IrrigationController:
         return float(row["feature_value"]) if row and row["feature_value"] is not None else 0.0
 
     async def _recent_event_exists(self, zone_id: str, minutes: int = 10) -> bool:
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
@@ -125,6 +131,8 @@ class IrrigationController:
 
     async def _execute_irrigation(self, zone_id: str, volume: float) -> None:
         await asyncio.sleep(5)
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
@@ -157,6 +165,8 @@ class IrrigationController:
             )
 
     async def store_event(self, event: dict[str, Any]) -> None:
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
@@ -178,6 +188,8 @@ class IrrigationController:
         LAST_RECOMMENDED_VOLUME.set(event["recommended_volume"])
 
     async def run(self) -> None:
+        if not self.pubsub:
+            raise RuntimeError("Redis pubsub not initialized. Call connect() first.")
         self._running = True
         try:
             async for message in self.pubsub.listen():
@@ -201,6 +213,8 @@ class IrrigationController:
             ORDER BY triggered_at DESC
             LIMIT $2
         """
+        if not self.db_pool:
+            raise RuntimeError("Database pool not initialized. Call connect() first.")
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(query, zone_id, limit)
         return [dict(row) for row in rows]

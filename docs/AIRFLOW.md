@@ -6,9 +6,45 @@ Apache Airflow orchestrates the MLOps pipeline for the Smart Irrigation System. 
 1. Dataset preparation from sensor data
 2. Model training (baseline + XGBoost)
 3. Model evaluation and promotion to production
-4. Prediction generation for irrigation triggers
+4. **Prediction generation** (scheduled, not real-time)
 
 **Location:** `airflow/dags/smart_irrigation_dags.py`
+
+---
+
+## Two Prediction Paths
+
+The system has **two ways** to generate predictions:
+
+### 1. Real-Time Predictions (Primary)
+
+```
+Feature Engineering → [features:computed] → Model Server → [predictions:new] → Irrigation Controller
+```
+
+- Triggered when new sensor data arrives
+- Model Server subscribes to Redis `features:computed`
+- Runs inference immediately
+- Publishes to `predictions:new` channel
+
+### 2. Scheduled Predictions (Airflow)
+
+```
+Airflow DAG: scheduled_zone_predictions → model-server API → [predictions:new] → Irrigation Controller
+```
+
+- Runs daily at 2:00 AM UTC
+- Queries all active zones from database
+- Calls model-server REST API (`/v1/predict`)
+- Stores predictions in `model_predictions` table
+- Publishes to `predictions:new` channel
+
+| Aspect | Real-Time | Scheduled (Airflow) |
+|--------|-----------|---------------------|
+| Trigger | New sensor data | Cron (daily 2am) |
+| Latency | ~10-15 seconds | Minutes |
+| Use Case | Immediate irrigation | Batch predictions |
+| Method | Redis subscription | REST API call |
 
 ---
 

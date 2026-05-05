@@ -90,6 +90,8 @@ class RedisConsumer:
         )
 
     async def run(self) -> None:
+        if not self._pubsub:
+            raise RuntimeError("Redis pubsub not initialized. Call connect() first.")
         self._running = True
         try:
             async for message in self._pubsub.listen():

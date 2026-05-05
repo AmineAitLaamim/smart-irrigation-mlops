@@ -3,7 +3,7 @@ import bcrypt
 import jwt
 import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from asyncpg import Connection
@@ -90,29 +90,37 @@ async def blacklist_token(jti: str, expire_seconds: int):
 async def is_token_blacklisted(jti: str) -> bool:
     return await blacklist_client.exists(f"blacklist:{jti}")
 
-async def verify_token(token: str, expected_type: str = "access") -> dict:
+async def verify_token(token: str, expected_type: str = "access") -> dict[str, Any]:
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if not isinstance(payload, dict):
+             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        
         if payload.get("type") != expected_type:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
         
         if expected_type == "refresh":
             jti = payload.get("jti")
-            if await is_token_blacklisted(jti):
+            if jti is None:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing JTI")
+            if await is_token_blacklisted(str(jti)):
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
                 
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
-    except jwt.InvalidTokenError:
+    except (jwt.InvalidTokenError, jwt.DecodeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 async def get_current_user(token: str = Depends(oauth2_scheme), conn: Connection = Depends(get_db_conn)):
     payload = await verify_token(token)
     user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token: missing subject")
+    
     try:
         from uuid import UUID
-        user_uuid = UUID(user_id)
+        user_uuid = UUID(str(user_id))
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user ID in token")
         

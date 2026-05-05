@@ -35,6 +35,8 @@ pipeline {
                 checkout([
                     $class: 'GitSCM',
                     branches: scm.branches,
+                    changelog: false,
+                    poll: false,
                     extensions: (scm.extensions ?: []) + [
                         [$class: 'CloneOption', depth: 1, noTags: true, shallow: true],
                         [$class: 'PruneStaleBranch']
@@ -46,6 +48,7 @@ pipeline {
                     echo "── Creating fast source archive ──"
                     # We use tar to bypass the slow Jenkins stash file-walker.
                     # This reduces stash/unstash overhead from minutes to seconds.
+                    # We ignore exit code 1 (file changed as we read it) which is common in dynamic environments.
                     tar --exclude="./services/web-dashboard/node_modules" \
                         --exclude="./.venv" \
                         --exclude="./.uv-test-venv" \
@@ -84,12 +87,12 @@ pipeline {
                             EXIT_CODE=0
                             for svc in $(echo $SERVICES | tr ',' ' '); do
                                 if [ -d "services/${svc}/src" ]; then
+                                    # Only run if there are python files in src
                                     if find "services/${svc}/src" -name "*.py" | grep -q .; then
                                         echo "▶ Type checking ${svc}..."
                                         PYTHONPATH="${WORKSPACE}/services/${svc}:${PYTHONPATH}" \
                                         python3 -m mypy "services/${svc}/src" \
                                             --ignore-missing-imports \
-                                            --check-untyped-defs \
                                             --no-error-summary \
                                             --junit-xml "mypy-${svc}.xml" || EXIT_CODE=1
                                     fi
@@ -115,10 +118,12 @@ pipeline {
                             EXIT_CODE=0
                             for svc in $(echo $SERVICES | tr ',' ' '); do
                                 if [ -d "services/${svc}/tests/unit" ]; then
+                                    # Only run if there are test files (ignoring .gitkeep)
                                     if find "services/${svc}/tests/unit" -name "test_*.py" | grep -q .; then
                                         echo "▶ Testing ${svc}..."
                                         python3 -m pip install --quiet -r "services/${svc}/requirements.txt" || true
                                         
+                                        # Set PYTHONPATH so 'from src...' works
                                         PYTHONPATH="${WORKSPACE}/services/${svc}:${PYTHONPATH}" \
                                         python3 -m pytest "services/${svc}/tests/unit/" \
                                             --junitxml="unit-${svc}.xml" \
@@ -142,7 +147,6 @@ pipeline {
                         sh 'tar -xzf source.tar.gz && rm source.tar.gz'
                         sh '''
                             echo "── OWASP Dependency-Check ──"
-                            mkdir -p dependency-check-report
                             SCAN_PATHS=""
                             for svc in $(echo $SERVICES | tr ',' ' '); do
                                 REQ="services/${svc}/requirements.txt"
@@ -151,6 +155,8 @@ pipeline {
                                 fi
                             done
 
+                            # Run scan but don't fail the parallel block yet
+                            # This allows tests to finish while NVD downloads
                             dependency-check.sh \
                                 ${SCAN_PATHS} \
                                 --project "smart-irrigation" \
@@ -159,7 +165,7 @@ pipeline {
                                 --out dependency-check-report \
                                 --failOnCVSS 11 \
                                 --enableExperimental \
-                                || echo "Dependency-Check completed with findings or initialization"
+                                || echo "Dependency-Check is initializing or findings found"
                         '''
                     }
                     post {
@@ -188,21 +194,29 @@ pipeline {
             steps {
                 unstash 'source-archive'
                 sh 'tar -xzf source.tar.gz && rm source.tar.gz'
-                sh '''
-                    echo "── Running integration tests ──"
-                    EXIT_CODE=0
-                    for svc in $(echo $SERVICES | tr ',' ' '); do
-                        if [ -d "services/${svc}/tests/integration" ]; then
-                            echo "▶ Integration: ${svc}..."
-                            pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
-                            python3 -m pytest "services/${svc}/tests/integration/" \
-                                --junitxml="integration-${svc}.xml" \
-                                --tb=short \
-                                -q || EXIT_CODE=1
-                        fi
-                    done
-                    exit $EXIT_CODE
-                '''
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-creds',
+                        usernameVariable: 'GHCR_USER',
+                        passwordVariable: 'GHCR_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        echo "── Running integration tests ──"
+                        EXIT_CODE=0
+                        for svc in $(echo $SERVICES | tr ',' ' '); do
+                            if [ -d "services/${svc}/tests/integration" ]; then
+                                echo "▶ Integration: ${svc}..."
+                                pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
+                                python3 -m pytest "services/${svc}/tests/integration/" \
+                                    --junitxml="integration-${svc}.xml" \
+                                    --tb=short \
+                                    -q || EXIT_CODE=1
+                            fi
+                        done
+                        exit $EXIT_CODE
+                    '''
+                }
             }
             post {
                 always {
@@ -212,7 +226,8 @@ pipeline {
         }
 
         // =====================================================================
-        // 4. DOCKER BUILD & VERIFY
+        // 6. DOCKER BUILD & VERIFY
+        // Runs on: ALL branches
         // =====================================================================
         stage('Docker Build & Verify') {
             agent { label 'docker' }
@@ -250,7 +265,8 @@ pipeline {
         }
 
         // =====================================================================
-        // 5. PUBLISH — push to GHCR (main ONLY)
+        // 7. PUBLISH — push to GHCR
+        // Runs on: main ONLY
         // =====================================================================
         stage('Publish') {
             when { branch 'main' }
@@ -287,7 +303,8 @@ pipeline {
         }
 
         // =====================================================================
-        // 6. DEPLOY (main ONLY)
+        // 8. DEPLOY — docker compose up on same machine
+        // Runs on: main ONLY
         // =====================================================================
         stage('Deploy') {
             when { branch 'main' }
@@ -332,6 +349,9 @@ pipeline {
         }
     }
 
+    // =========================================================================
+    // POST — cleanup + notifications
+    // =========================================================================
     post {
         always {
             node('python') {

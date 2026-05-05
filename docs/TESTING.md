@@ -311,7 +311,7 @@ docker run --rm smart-irrigation-user-service pytest --cov=src --cov-report=html
 ### Redis connection errors
 
 - Use `fakeredis` for unit tests
-- Use testcontainers for integration tests
+- Use Docker containers for integration tests
 
 ---
 
