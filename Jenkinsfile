@@ -121,7 +121,7 @@ pipeline {
                                     # Only run if there are test files (ignoring .gitkeep)
                                     if find "services/${svc}/tests/unit" -name "test_*.py" | grep -q .; then
                                         echo "▶ Testing ${svc}..."
-                                        python3 -m pip install --quiet -r "services/${svc}/requirements.txt" || true
+                                        python3 -m pip install --quiet -r "services/${svc}/requirements.txt"
                                         
                                         # Set PYTHONPATH so 'from src...' works
                                         PYTHONPATH="${WORKSPACE}/services/${svc}:${PYTHONPATH}" \
@@ -207,7 +207,7 @@ pipeline {
                         for svc in $(echo $SERVICES | tr ',' ' '); do
                             if [ -d "services/${svc}/tests/integration" ]; then
                                 echo "▶ Integration: ${svc}..."
-                                pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null || true
+                                pip install --quiet -r "services/${svc}/requirements.txt" 2>/dev/null
                                 python3 -m pytest "services/${svc}/tests/integration/" \
                                     --junitxml="integration-${svc}.xml" \
                                     --tb=short \
