@@ -59,7 +59,7 @@ jenkins:
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
-                user: "root"
+                user: "jenkins"
             instanceCapStr: "4"
             removeVolumes: true
 
@@ -77,7 +77,7 @@ jenkins:
             remoteFs: "/home/jenkins/agent"
             connector:
               attach:
-                user: "root"
+                user: "jenkins"
             instanceCapStr: "2"
             removeVolumes: true
 
@@ -101,7 +101,7 @@ credentials:
 # ─────────────────────────────────────────────────────────────────────────────
 unclassified:
   location:
-    url: "${JENKINS_URL:-http://localhost:8081/}"
+    url: "${JENKINS_URL:-http://jenkins:8080/}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Seed Job — auto-creates the pipeline job on first boot
