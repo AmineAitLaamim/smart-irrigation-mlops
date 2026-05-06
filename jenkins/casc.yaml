@@ -54,7 +54,7 @@ jenkins:
             dockerTemplateBase:
               image: "smart-irrigation-python-agent:latest"
               mounts:
-                - type=volume,source=jenkins-python-cache,destination=/root/.cache
+                - type=volume,source=jenkins-python-cache,destination=/home/jenkins/.cache
                 - type=volume,source=jenkins-dc-data,destination=/opt/dependency-check/data
             remoteFs: "/home/jenkins/agent"
             connector:

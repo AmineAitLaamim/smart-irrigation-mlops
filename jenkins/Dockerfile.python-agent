@@ -30,6 +30,23 @@ RUN python3 -m venv /opt/venv && \
         pytest-cov \
         pytest-asyncio \
         types-requests \
+        # Pre-bake heavy dependencies for all services
+        fastapi \
+        uvicorn[standard] \
+        pydantic \
+        pydantic-settings \
+        redis \
+        asyncpg \
+        prometheus-client \
+        httpx \
+        # Model Server (Heavy ML)
+        xgboost \
+        scikit-learn \
+        pandas \
+        mlflow \
+        boto3 \
+        grpcio \
+        grpcio-tools \
     && chown -R jenkins:jenkins /opt/venv
 
 ENV PATH="/opt/venv/bin:${PATH}"
