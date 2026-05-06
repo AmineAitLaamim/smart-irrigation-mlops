@@ -7998,7 +7998,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url("https://github.com/AmineAitLaamim/smart-irrigation.git")
+                  url("https://github.com/AmineAitLaamim/smart-irrigation-mlops.git")
                   credentials('github-creds')
                 }
                 branches('*/main', '*/develop', '*/devops', '**')

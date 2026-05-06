@@ -18,6 +18,7 @@ async def client():
 
 @pytest.mark.asyncio
 async def test_health_endpoint(client):
+    # Test the health endpoint
     response = await client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
@@ -25,6 +26,7 @@ async def test_health_endpoint(client):
 
 @pytest.mark.asyncio
 async def test_model_info_endpoint(client):
+    # Test the model info endpoint
     response = await client.get("/v1/model/info")
     assert response.status_code == 200
     assert "version" in response.json()
@@ -32,6 +34,7 @@ async def test_model_info_endpoint(client):
 
 @pytest.mark.asyncio
 async def test_predict_endpoint(client):
+    # Test the predict endpoint
     response = await client.post(
         "/v1/predict",
         json={"zone_id": "zone_a", "sensor_id": "sensor_a1", "features": [1.0, 2.0, 3.0]},

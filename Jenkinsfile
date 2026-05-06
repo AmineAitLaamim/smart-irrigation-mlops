@@ -14,7 +14,7 @@ pipeline {
 
     environment {
         REGISTRY    = 'ghcr.io'
-        IMAGE_BASE  = "ghcr.io/AmineAitLaamim/smart-irrigation"
+        IMAGE_BASE  = "ghcr.io/AmineAitLaamim/smart-irrigation-mlops"
         // Inlined service list to avoid library dependency
         SERVICES    = 'api-gateway,data-ingestion,drift-monitor,feature-engineering,irrigation-controller,model-server,notification-service,sensor-simulator,user-service,web-dashboard'
     }

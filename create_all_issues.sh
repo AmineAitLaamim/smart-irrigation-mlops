@@ -1,6 +1,6 @@
 #!/bin/bash
 
-REPO="AmineAitLaamim/smart-irrigation"
+REPO="AmineAitLaamim/smart-irrigation-mlops"
 
 echo "Creating labels..."
 
