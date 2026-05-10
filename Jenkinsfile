@@ -37,17 +37,28 @@ pipeline {
             }
             steps {
                 cleanWs()
-                checkout([
-                    $class: 'GitSCM',
-                    branches: scm.branches,
-                    changelog: false,
-                    poll: false,
-                    extensions: (scm.extensions ?: []) + [
-                        [$class: 'CloneOption', depth: 1, noTags: true, shallow: true],
-                        [$class: 'PruneStaleBranch']
-                    ],
-                    userRemoteConfigs: scm.userRemoteConfigs
-                ])
+                script {
+                    String remoteUrl = scm.userRemoteConfigs[0].url
+                    String credentialsId = scm.userRemoteConfigs[0].credentialsId ?: 'github-creds'
+                    String branchName = env.CHANGE_BRANCH ?: env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'origin/main'
+                    branchName = branchName.replaceFirst(/^origin\//, '')
+                    String branchSpec = "*/${branchName}"
+                    String refspec = "+refs/heads/${branchName}:refs/remotes/origin/${branchName}"
+
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: branchSpec]],
+                        extensions: [
+                            [$class: 'CloneOption', depth: 1, noTags: true, shallow: true, honorRefspec: true],
+                            [$class: 'PruneStaleBranch']
+                        ],
+                        userRemoteConfigs: [[
+                            url: remoteUrl,
+                            credentialsId: credentialsId,
+                            refspec: refspec
+                        ]]
+                    ])
+                }
                 
                 sh '''
                     echo "── Creating fast source archive ──"
