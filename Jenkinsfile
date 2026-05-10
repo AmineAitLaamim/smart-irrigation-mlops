@@ -29,7 +29,12 @@ pipeline {
         // 1. CHECKOUT
         // =====================================================================
         stage('Checkout') {
-            agent { label 'python' }
+            agent {
+                node {
+                    label 'python'
+                    retries 2
+                }
+            }
             steps {
                 cleanWs()
                 checkout([
