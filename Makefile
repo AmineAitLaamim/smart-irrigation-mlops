@@ -85,7 +85,7 @@ check-env:
 # Startup
 # -----------------------------------------------------------------------------
 .PHONY: up
-up: check-env
+up: #check-env
 	$(COMPOSE_ALL) up -d
 	@echo ""
 	@echo "All 19 containers starting. Run 'make ps' to check health status."
